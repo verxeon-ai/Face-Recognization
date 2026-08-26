@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Known Persons - AI Face Recognition{% endblock %}
+{% block content %}
+<div class="row mb-3">
+    <div class="col-12 d-flex align-items-center justify-content-between">
+        <h2 class="section-title mb-0">
+            <i class="bi bi-people me-2"></i>Known Persons Database
+        </h2>
+        <a href="/add_person" class="btn btn-success btn-sm">
+            <i class="bi bi-person-plus me-1"></i>Add Person
+        </a>
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-database me-2"></i>
+                {{ stats.total_persons }} persons loaded from LFW Dataset
+            </div>
+            <div class="card-body">
+                {% if stats.persons %}
+                <div class="row row-cols-2 row-cols-md-4 row-cols-lg-6 g-2">
+                    {% for person in stats.persons %}
+                    <div class="col">
+                        <div class="p-2 text-center rounded"
+                             style="background:rgba(25,135,84,0.1);border:1px solid rgba(25,135,84,0.3)">
+                            <i class="bi bi-person-circle" style="font-size:1.8rem;color:#2ecc71"></i>
+                            <p class="mb-0 mt-1" style="font-size:0.78rem;color:#ccc">{{ person }}</p>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="text-center py-5 text-muted">
+                    <i class="bi bi-database-x" style="font-size:3rem;opacity:0.3"></i>
+                    <p class="mt-3">No persons in database. Run dataset_setup.py then train_encodings.py</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

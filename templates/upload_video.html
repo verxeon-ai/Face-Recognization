@@ -1,0 +1,285 @@
+{% extends "base.html" %}
+{% block title %}Upload Video - AI Face Recognition{% endblock %}
+
+{% block extra_css %}
+<style>
+    .drop-zone {
+        border: 2px dashed #2d3045;
+        border-radius: 12px;
+        padding: 40px;
+        text-align: center;
+        cursor: pointer;
+        transition: all 0.3s;
+        background: rgba(253,150,68,0.03);
+    }
+    .drop-zone:hover, .drop-zone.drag-over {
+        border-color: #fd9644;
+        background: rgba(253,150,68,0.08);
+    }
+    .progress-container { display: none; }
+    .result-chip {
+        padding: 6px 14px;
+        border-radius: 20px;
+        margin: 3px;
+        display: inline-block;
+        font-size: 0.85rem;
+    }
+    .chip-known {
+        background: rgba(25,135,84,0.2);
+        border: 1px solid #198754;
+        color: #2ecc71;
+    }
+    .chip-unknown {
+        background: rgba(220,53,69,0.2);
+        border: 1px solid #dc3545;
+        color: #ff6b6b;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row mb-3">
+    <div class="col">
+        <h2 class="section-title">
+            <i class="bi bi-film me-2"></i>Upload Video for Analysis
+        </h2>
+        <p class="text-muted">Upload a video file to check whether all persons appearing in it are in the dataset.</p>
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-lg-5">
+        <div class="card">
+            <div class="card-header"><i class="bi bi-upload me-2"></i>Select Video</div>
+            <div class="card-body">
+                <div class="drop-zone" id="dropZone" onclick="document.getElementById('videoInput').click()">
+                    <i class="bi bi-camera-video" style="font-size:3rem;color:#fd9644"></i>
+                    <p class="mt-2 mb-0">Drag & drop or click to select video</p>
+                    <small class="text-muted">MP4, AVI, MOV, MKV, WEBM supported (max 500MB)</small>
+                </div>
+                <input type="file" id="videoInput" accept="video/*" style="display:none" onchange="handleFileSelect(event)">
+
+                <div id="fileInfo" class="mt-3 d-none">
+                    <div class="p-3 rounded" style="background:#0d1117;border:1px solid #2d3045">
+                        <i class="bi bi-file-earmark-play text-warning me-2"></i>
+                        <span id="fileName" class="text-white"></span>
+                        <small id="fileSize" class="text-muted ms-2"></small>
+                    </div>
+                    <button class="btn btn-warning w-100 mt-3" onclick="uploadAndAnalyze()" style="color:#fff">
+                        <i class="bi bi-search me-1"></i>Upload & Analyze Video
+                    </button>
+                </div>
+
+                <!-- Progress -->
+                <div class="progress-container mt-3" id="progressContainer">
+                    <div class="d-flex justify-content-between mb-1">
+                        <small class="text-muted" id="progressLabel">Uploading...</small>
+                        <small id="progressPct">0%</small>
+                    </div>
+                    <div class="progress" style="height:10px;border-radius:10px">
+                        <div id="progressBar" class="progress-bar progress-bar-striped progress-bar-animated"
+                             style="width:0%;background:#fd9644"></div>
+                    </div>
+                    <small class="text-muted mt-1 d-block">
+                        <i class="bi bi-info-circle me-1"></i>Processing may take a while for long videos.
+                    </small>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tips -->
+        <div class="card mt-3">
+            <div class="card-header"><i class="bi bi-lightbulb me-2"></i>How It Works</div>
+            <div class="card-body">
+                <ol class="text-muted small ps-3">
+                    <li class="mb-2">Video is analyzed frame by frame (every 0.5 seconds)</li>
+                    <li class="mb-2">Faces detected in each frame are matched against the database</li>
+                    <li class="mb-2">All recognized persons are listed in the report</li>
+                    <li class="mb-2">Alert is raised if any unknown person is detected</li>
+                    <li>Annotated output video is generated and available for download</li>
+                </ol>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-7">
+        <!-- Placeholder -->
+        <div id="placeholder" class="card" style="min-height:400px">
+            <div class="card-body d-flex align-items-center justify-content-center flex-column text-center">
+                <i class="bi bi-film text-muted" style="font-size:4rem;opacity:0.3"></i>
+                <p class="text-muted mt-3">Upload a video to see analysis results here</p>
+            </div>
+        </div>
+
+        <!-- Processing status -->
+        <div id="processingSection" class="d-none">
+            <div class="card">
+                <div class="card-body text-center py-5">
+                    <div class="spinner-border text-warning mb-3" style="width:3rem;height:3rem"></div>
+                    <h5 class="text-white">Processing Video...</h5>
+                    <p class="text-muted">Analyzing frames and detecting faces. This may take a few minutes.</p>
+                    <div class="progress mt-3" style="height:8px;border-radius:10px">
+                        <div id="videoProgressBar" class="progress-bar progress-bar-striped progress-bar-animated"
+                             style="width:0%;background:#fd9644"></div>
+                    </div>
+                    <small id="videoProgressPct" class="text-muted mt-2 d-block">0% complete</small>
+                </div>
+            </div>
+        </div>
+
+        <!-- Results -->
+        <div id="resultsSection" class="d-none">
+            <!-- Alert / Safe banner -->
+            <div id="alertBanner" class="p-3 rounded mb-3 d-none"
+                 style="background:rgba(220,53,69,0.15);border:2px solid #dc3545">
+                <h5 class="text-danger mb-1"><i class="bi bi-exclamation-triangle-fill me-2"></i>ALERT!</h5>
+                <p class="mb-0 text-danger">Unknown persons were detected in this video.</p>
+            </div>
+            <div id="safeBanner" class="p-3 rounded mb-3 d-none"
+                 style="background:rgba(25,135,84,0.15);border:2px solid #198754">
+                <h5 class="text-success mb-1"><i class="bi bi-shield-check me-2"></i>All Clear!</h5>
+                <p class="mb-0 text-success">All persons in this video are in the dataset.</p>
+            </div>
+
+            <div class="card mb-3">
+                <div class="card-header"><i class="bi bi-bar-chart me-2"></i>Video Analysis Report</div>
+                <div class="card-body">
+                    <div class="row text-center g-2 mb-4">
+                        <div class="col-4">
+                            <div style="font-size:1.8rem;font-weight:700;color:#4fc3f7" id="totalFrames">0</div>
+                            <small class="text-muted">Frames Analyzed</small>
+                        </div>
+                        <div class="col-4">
+                            <div style="font-size:1.8rem;font-weight:700;color:#2ecc71" id="personCount">0</div>
+                            <small class="text-muted">Known Persons</small>
+                        </div>
+                        <div class="col-4">
+                            <div style="font-size:1.8rem;font-weight:700;color:#e74c3c" id="unknownFrames">0</div>
+                            <small class="text-muted">Frames w/ Unknown</small>
+                        </div>
+                    </div>
+
+                    <h6 class="text-muted mb-2">Recognized Persons:</h6>
+                    <div id="personsList" class="mb-3"></div>
+
+                    <div id="downloadSection" class="d-none">
+                        <hr style="border-color:#2d3045">
+                        <a id="downloadLink" href="#" class="btn btn-outline-warning btn-sm" target="_blank">
+                            <i class="bi bi-download me-1"></i>Download Annotated Video
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let selectedFile = null;
+    let pollJobId = null;
+    let pollInterval = null;
+
+    const dropZone = document.getElementById('dropZone');
+    dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+    dropZone.addEventListener('drop', e => {
+        e.preventDefault();
+        dropZone.classList.remove('drag-over');
+        const file = e.dataTransfer.files[0];
+        if (file) processFile(file);
+    });
+
+    function handleFileSelect(event) {
+        const file = event.target.files[0];
+        if (file) processFile(file);
+    }
+
+    function processFile(file) {
+        selectedFile = file;
+        document.getElementById('fileName').textContent = file.name;
+        const mb = (file.size / 1024 / 1024).toFixed(1);
+        document.getElementById('fileSize').textContent = `(${mb} MB)`;
+        document.getElementById('fileInfo').classList.remove('d-none');
+    }
+
+    function uploadAndAnalyze() {
+        if (!selectedFile) return;
+
+        const formData = new FormData();
+        formData.append('video', selectedFile);
+
+        document.getElementById('placeholder').classList.add('d-none');
+        document.getElementById('resultsSection').classList.add('d-none');
+        document.getElementById('processingSection').classList.remove('d-none');
+        document.getElementById('progressContainer').style.display = 'block';
+        document.getElementById('progressLabel').textContent = 'Uploading video...';
+
+        const xhr = new XMLHttpRequest();
+        xhr.upload.onprogress = e => {
+            if (e.lengthComputable) {
+                const pct = Math.round((e.loaded / e.total) * 100);
+                document.getElementById('progressBar').style.width = pct + '%';
+                document.getElementById('progressPct').textContent = pct + '%';
+            }
+        };
+        xhr.onload = () => {
+            const data = JSON.parse(xhr.responseText);
+            if (data.job_id) {
+                pollJobId = data.job_id;
+                document.getElementById('progressLabel').textContent = 'Processing frames...';
+                pollInterval = setInterval(pollProgress, 2000);
+            }
+        };
+        xhr.open('POST', '/upload_video');
+        xhr.send(formData);
+    }
+
+    function pollProgress() {
+        if (!pollJobId) return;
+        fetch('/video_progress/' + pollJobId)
+        .then(r => r.json())
+        .then(data => {
+            const pct = data.progress || 0;
+            document.getElementById('videoProgressBar').style.width = pct + '%';
+            document.getElementById('videoProgressPct').textContent = pct + '% complete';
+
+            if (data.status === 'done' && data.results) {
+                clearInterval(pollInterval);
+                showResults(data.results, data.output_filename);
+            }
+        });
+    }
+
+    function showResults(r, outputFilename) {
+        document.getElementById('processingSection').classList.add('d-none');
+        document.getElementById('resultsSection').classList.remove('d-none');
+
+        document.getElementById('totalFrames').textContent = r.total_frames || 0;
+        document.getElementById('personCount').textContent = r.recognized_persons ? r.recognized_persons.length : 0;
+        document.getElementById('unknownFrames').textContent = r.frames_with_unknowns || 0;
+
+        document.getElementById('alertBanner').classList.toggle('d-none', !r.alert);
+        document.getElementById('safeBanner').classList.toggle('d-none', r.alert);
+
+        let html = '';
+        if (r.recognized_persons && r.recognized_persons.length > 0) {
+            r.recognized_persons.forEach(name => {
+                html += `<span class="result-chip chip-known"><i class="bi bi-person-check me-1"></i>${name}</span>`;
+            });
+        } else {
+            html = '<p class="text-muted small">No known persons recognized</p>';
+        }
+        if (r.frames_with_unknowns > 0) {
+            html += `<span class="result-chip chip-unknown"><i class="bi bi-person-x me-1"></i>Unknown Person(s) in ${r.frames_with_unknowns} frames</span>`;
+        }
+        document.getElementById('personsList').innerHTML = html;
+
+        if (outputFilename) {
+            document.getElementById('downloadSection').classList.remove('d-none');
+            document.getElementById('downloadLink').href = '/results/' + outputFilename;
+        }
+    }
+</script>
+{% endblock %}

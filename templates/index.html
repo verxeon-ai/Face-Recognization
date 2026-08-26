@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+{% block title %}Dashboard - AI Face Recognition System{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <h2 class="section-title">
+            <i class="bi bi-speedometer2 me-2"></i>System Dashboard
+        </h2>
+    </div>
+</div>
+
+<!-- Stats Row -->
+<div class="row g-3 mb-4">
+    <div class="col-md-3 col-6">
+        <div class="card stat-card">
+            <div class="stat-number">{{ stats.total_persons }}</div>
+            <div class="stat-label"><i class="bi bi-people me-1"></i>Known Persons</div>
+        </div>
+    </div>
+    <div class="col-md-3 col-6">
+        <div class="card stat-card">
+            <div class="stat-number" style="font-size:1.6rem; color: {% if stats.encodings_loaded %}#2ecc71{% else %}#e74c3c{% endif %}">
+                {% if stats.encodings_loaded %}ACTIVE{% else %}OFFLINE{% endif %}
+            </div>
+            <div class="stat-label"><i class="bi bi-database me-1"></i>Database Status</div>
+        </div>
+    </div>
+    <div class="col-md-3 col-6">
+        <div class="card stat-card">
+            <div class="stat-number" style="font-size:1.6rem; color: {% if stats.model_loaded %}#2ecc71{% else %}#e74c3c{% endif %}">
+                {% if stats.model_loaded %}ONLINE{% else %}OFFLINE{% endif %}
+            </div>
+            <div class="stat-label"><i class="bi bi-cpu me-1"></i>Engine State</div>
+        </div>
+    </div>
+    <div class="col-md-3 col-6">
+        <div class="card stat-card">
+            <div class="stat-number" style="font-size:1.2rem;color:#4fc3f7;">YuNet + SVM</div>
+            <div class="stat-label"><i class="bi bi-diagram-3 me-1"></i>Recognition Model</div>
+        </div>
+    </div>
+</div>
+
+<!-- Feature Cards -->
+<div class="row g-3 mb-4">
+    <div class="col-md-6 col-lg-3">
+        <div class="card h-100">
+            <div class="card-body text-center p-4">
+                <i class="bi bi-camera-video-fill" style="font-size:3rem;color:#4fc3f7"></i>
+                <h5 class="mt-3">Live Camera</h5>
+                <p class="text-muted small">Real-time face recognition using your PC webcam with instant person identification.</p>
+                <a href="/live" class="btn btn-primary w-100">
+                    <i class="bi bi-play-fill me-1"></i>Start Live Feed
+                </a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6 col-lg-3">
+        <div class="card h-100">
+            <div class="card-body text-center p-4">
+                <i class="bi bi-phone-fill" style="font-size:3rem;color:#a29bfe"></i>
+                <h5 class="mt-3">Phone Camera</h5>
+                <p class="text-muted small">Connect your phone as IP camera via DroidCam or IP Webcam app over Wi-Fi.</p>
+                <a href="/phone_camera" class="btn btn-primary w-100" style="background:#6c5ce7;border-color:#6c5ce7">
+                    <i class="bi bi-phone me-1"></i>Connect Phone
+                </a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6 col-lg-3">
+        <div class="card h-100">
+            <div class="card-body text-center p-4">
+                <i class="bi bi-image-fill" style="font-size:3rem;color:#00b894"></i>
+                <h5 class="mt-3">Image Upload</h5>
+                <p class="text-muted small">Upload any photo to check if all persons in it are in the database.</p>
+                <a href="/upload_image" class="btn btn-success w-100">
+                    <i class="bi bi-upload me-1"></i>Upload Image
+                </a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6 col-lg-3">
+        <div class="card h-100">
+            <div class="card-body text-center p-4">
+                <i class="bi bi-film" style="font-size:3rem;color:#fd9644"></i>
+                <h5 class="mt-3">Video Upload</h5>
+                <p class="text-muted small">Upload a video to analyze every person appearing in it against the dataset.</p>
+                <a href="/upload_video" class="btn btn-warning w-100" style="color:#fff">
+                    <i class="bi bi-upload me-1"></i>Upload Video
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- How It Works + Known Persons -->
+<div class="row g-3">
+    <div class="col-md-7">
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-people-fill me-2"></i>Known Persons in System
+            </div>
+            <div class="card-body">
+                {% if stats.persons %}
+                    <div>
+                        {% for person in stats.persons %}
+                            <span class="badge-person">{{ person }}</span>
+                        {% endfor %}
+                    </div>
+                    <div class="mt-3 text-muted small">
+                        <i class="bi bi-info-circle me-1"></i>
+                        {{ stats.total_persons }} persons loaded from LFW (Labeled Faces in the Wild) dataset
+                    </div>
+                {% else %}
+                    <div class="text-center py-3 text-muted">
+                        <i class="bi bi-database-x" style="font-size:2rem"></i>
+                        <p class="mt-2">No persons loaded. Run <code>dataset_setup.py</code> then <code>train_encodings.py</code></p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    <div class="col-md-5">
+        <div class="card h-100">
+            <div class="card-header">
+                <i class="bi bi-info-circle me-2"></i>System Info
+            </div>
+            <div class="card-body">
+                <table class="table table-borderless table-sm text-white">
+                    <tr><td class="text-muted">Dataset</td><td><a href="http://vis-www.cs.umass.edu/lfw/" target="_blank" class="text-info">LFW - Labeled Faces in the Wild</a></td></tr>
+                    <tr><td class="text-muted">Face Embedding</td><td>OpenCV SFace (128D Deep Representation)</td></tr>
+                    <tr><td class="text-muted">Face Detection</td><td>OpenCV YuNet DNN (5-point Landmark Alignment)</td></tr>
+                    <tr><td class="text-muted">Threat Engine</td><td>Ultralytics YOLOv8 Nano</td></tr>
+                    <tr><td class="text-muted">Streaming Protocol</td><td>Flask MJPEG / HTML5 WebRTC Streamer</td></tr>
+                </table>
+                <a href="/alerts" class="btn btn-danger btn-sm w-100">
+                    <i class="bi bi-bell me-1"></i>View Alert Log
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

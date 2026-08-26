@@ -1,0 +1,31 @@
+{
+  "weapon_detection_enabled": true,
+  "altercation_enabled": true,
+  "restricted_zone_enabled": true,
+  "person_down_enabled": true,
+  "loitering_enabled": true,
+  "crowd_anomaly_enabled": true,
+  "loitering_threshold_seconds": 8.0,
+  "crowd_surge_threshold": 4,
+  "motion_energy_threshold": 18.0,
+  "confidence_threshold": 0.45,
+  "restricted_zone_polygon": [
+    [
+      0.55,
+      0.2
+    ],
+    [
+      0.95,
+      0.2
+    ],
+    [
+      0.95,
+      0.85
+    ],
+    [
+      0.55,
+      0.85
+    ]
+  ],
+  "camera_name": "Camera 27 - North Corridor / Main Entrance"
+}

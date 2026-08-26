@@ -1,0 +1,360 @@
+{% extends "base.html" %}
+{% block title %}V1 AI Video Threat Recognition - SOC Dashboard{% endblock %}
+
+{% block extra_css %}
+<style>
+    .threat-hud-feed {
+        position: relative;
+        background: #000;
+        border-radius: 12px;
+        overflow: hidden;
+        border: 2px solid #2d3045;
+    }
+    #threatVideoFeed {
+        width: 100%;
+        max-height: 520px;
+        object-fit: contain;
+        display: block;
+    }
+    .metric-badge {
+        background: #1a1d2e;
+        border: 1px solid #2d3045;
+        border-radius: 10px;
+        padding: 12px;
+        text-align: center;
+    }
+    .threat-pill {
+        display: inline-block;
+        padding: 6px 12px;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        margin: 2px;
+    }
+    .pill-active {
+        background: rgba(220, 53, 69, 0.25);
+        color: #ff6b6b;
+        border: 1px solid #dc3545;
+        animation: pulseRed 1s infinite;
+    }
+    .pill-normal {
+        background: rgba(25, 135, 84, 0.15);
+        color: #2ecc71;
+        border: 1px solid #198754;
+    }
+    @keyframes pulseRed {
+        0%, 100% { opacity: 1; transform: scale(1); }
+        50% { opacity: 0.7; transform: scale(0.98); }
+    }
+    .incident-package-card {
+        background: #151824;
+        border: 1px solid #3d3b65;
+        border-radius: 10px;
+        padding: 12px;
+        margin-bottom: 10px;
+        transition: all 0.2s;
+    }
+    .incident-package-card:hover {
+        border-color: #6c5ce7;
+        background: #1a1d2e;
+    }
+    .badge-pending { background: #fd9644; color: #fff; }
+    .badge-verified { background: #dc3545; color: #fff; }
+    .badge-false { background: #6c757d; color: #fff; }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Top Header: AI Video Threat Recognition Platform -->
+<div class="row mb-3">
+    <div class="col-12 d-flex align-items-center justify-content-between flex-wrap gap-2">
+        <div>
+            <h2 class="section-title mb-0" style="color:#4fc3f7;">
+                <i class="bi bi-shield-lock-fill me-2"></i>Video Threat Recognition & SOC Platform
+            </h2>
+            <small class="text-muted">Real-Time Surveillance Analytics & Incident Verification System</small>
+        </div>
+        <div>
+            <span id="systemStatusBadge" class="badge bg-success p-2 fs-6">
+                ● STATUS: NORMAL (ALL CLEAR)
+            </span>
+            <button class="btn btn-outline-info btn-sm ms-2" onclick="refreshIncidents()">
+                <i class="bi bi-arrow-clockwise me-1"></i> Refresh SOC Feed
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- 6 Threat Detections Status Row (Page 2 of PDF) -->
+<div class="row g-2 mb-3">
+    <div class="col-6 col-md-2">
+        <div id="pillWeapon" class="threat-pill pill-normal w-100 text-center">
+            <i class="bi bi-crosshair me-1"></i> 1. Visible Weapon
+        </div>
+    </div>
+    <div class="col-6 col-md-2">
+        <div id="pillAltercation" class="threat-pill pill-normal w-100 text-center">
+            <i class="bi bi-lightning-fill me-1"></i> 2. Physical Fight
+        </div>
+    </div>
+    <div class="col-6 col-md-2">
+        <div id="pillRestricted" class="threat-pill pill-normal w-100 text-center">
+            <i class="bi bi-slash-circle-fill me-1"></i> 3. Restricted Zone
+        </div>
+    </div>
+    <div class="col-6 col-md-2">
+        <div id="pillPersonDown" class="threat-pill pill-normal w-100 text-center">
+            <i class="bi bi-person-slash me-1"></i> 4. Person Down / Fall
+        </div>
+    </div>
+    <div class="col-6 col-md-2">
+        <div id="pillLoitering" class="threat-pill pill-normal w-100 text-center">
+            <i class="bi bi-hourglass-split me-1"></i> 5. Loitering
+        </div>
+    </div>
+    <div class="col-6 col-md-2">
+        <div id="pillCrowd" class="threat-pill pill-normal w-100 text-center">
+            <i class="bi bi-people-fill me-1"></i> 6. Crowd Anomaly
+        </div>
+    </div>
+</div>
+
+<!-- Main Section: Live Video + Human Verification Workflow (Page 3 of PDF) -->
+<div class="row g-3">
+    
+    <!-- Left: Live Video Threat Stream with HUD -->
+    <div class="col-lg-7">
+        <div class="threat-hud-feed">
+            <img id="threatVideoFeed" src="/threat_video_feed" alt="Live AI Threat Stream">
+            <div style="position:absolute;top:12px;left:12px;">
+                <span class="badge" style="background:rgba(13,110,253,0.9);font-size:0.85rem;padding:6px 12px;">
+                    ● LIVE AI THREAT ENGINE ACTIVE
+                </span>
+            </div>
+            <div style="position:absolute;top:12px;right:12px;">
+                <span id="motionHudBadge" class="badge bg-dark" style="border:1px solid #4fc3f7;">
+                    Motion Energy: 0.0
+                </span>
+            </div>
+        </div>
+
+        <!-- Camera Controls -->
+        <div class="card mt-3">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-camera-video me-2"></i>Camera Feed Switcher</span>
+                <small class="text-muted">Multi-Source Stream Selector</small>
+            </div>
+            <div class="card-body">
+                <div class="row g-2">
+                    <div class="col-md-4">
+                        <button class="btn btn-outline-primary w-100 btn-sm" onclick="switchCameraSource('webcam')">
+                            <i class="bi bi-laptop me-1"></i> PC Webcam
+                        </button>
+                    </div>
+                    <div class="col-md-4">
+                        <a href="/phone_camera" target="_blank" class="btn btn-outline-info w-100 btn-sm">
+                            <i class="bi bi-phone me-1"></i> Connect Phone Camera
+                        </a>
+                    </div>
+                    <div class="col-md-4">
+                        <button class="btn btn-outline-warning w-100 btn-sm" onclick="showRulesModal()">
+                            <i class="bi bi-sliders me-1"></i> Rules & Thresholds
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right: Human Verification Incident Packages -->
+    <div class="col-lg-5">
+        <div class="card h-100">
+            <div class="card-header d-flex justify-content-between align-items-center" style="background:rgba(108,92,231,0.15);">
+                <span><i class="bi bi-person-check-fill me-2" style="color:#a29bfe;"></i>Incident Verification Workflow</span>
+                <span class="badge bg-primary">Operator Triage</span>
+            </div>
+            <div class="card-body" style="max-height: 540px; overflow-y: auto;" id="incidentsList">
+                <!-- Dynamically loaded incident packages -->
+                <div class="text-center py-5 text-muted">
+                    <i class="bi bi-shield-check" style="font-size:3rem;opacity:0.4;"></i>
+                    <p class="mt-2">No active threats detected.<br>AI is continuously scanning live feeds.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<!-- Rules & Zone Config Modal -->
+<div class="modal fade" id="rulesModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content" style="background:#1a1d2e;color:#fff;border:1px solid #3d3b65;">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-sliders me-2"></i>V1 Detection Rules & Thresholds Config</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label text-muted small">Loitering Threshold (Seconds):</label>
+                        <input type="number" id="cfgLoiter" class="form-control" value="8" style="background:#0d1117;color:#fff;">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label text-muted small">Crowd Surge Count Threshold:</label>
+                        <input type="number" id="cfgCrowd" class="form-control" value="4" style="background:#0d1117;color:#fff;">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label text-muted small">Motion Energy Sensitivity (Fight / Altercation):</label>
+                        <input type="number" id="cfgMotion" class="form-control" value="18" style="background:#0d1117;color:#fff;">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label text-muted small">AI Model Confidence Cutoff (%):</label>
+                        <input type="number" id="cfgConf" class="form-control" value="45" style="background:#0d1117;color:#fff;">
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button class="btn btn-primary" onclick="saveRules()">Save Rules</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let pollInterval = null;
+
+    window.addEventListener('DOMContentLoaded', () => {
+        pollInterval = setInterval(pollThreatHUD, 1000);
+        refreshIncidents();
+    });
+
+    function pollThreatHUD() {
+        fetch('/api/threat_status')
+        .then(r => r.json())
+        .then(data => {
+            document.getElementById('motionHudBadge').textContent = 'Motion Energy: ' + (data.motion_energy || 0.0);
+
+            // Update top status badge
+            const statusBadge = document.getElementById('systemStatusBadge');
+            if (data.threats_count > 0) {
+                statusBadge.className = 'badge bg-danger p-2 fs-6';
+                statusBadge.innerHTML = `ALERT: ${data.threats[0].type.toUpperCase()}`;
+            } else {
+                statusBadge.className = 'badge bg-success p-2 fs-6';
+                statusBadge.innerHTML = '● STATUS: NORMAL (ALL CLEAR)';
+            }
+
+            // Reset all pills
+            ['pillWeapon', 'pillAltercation', 'pillRestricted', 'pillPersonDown', 'pillLoitering', 'pillCrowd'].forEach(id => {
+                document.getElementById(id).className = 'threat-pill pill-normal w-100 text-center';
+            });
+
+            // Highlight active pills
+            if (data.threats) {
+                data.threats.forEach(t => {
+                    if (t.type.includes('Weapon')) document.getElementById('pillWeapon').className = 'threat-pill pill-active w-100 text-center';
+                    if (t.type.includes('Altercation') || t.type.includes('Fight')) document.getElementById('pillAltercation').className = 'threat-pill pill-active w-100 text-center';
+                    if (t.type.includes('Restricted')) document.getElementById('pillRestricted').className = 'threat-pill pill-active w-100 text-center';
+                    if (t.type.includes('Person Down') || t.type.includes('Fall')) document.getElementById('pillPersonDown').className = 'threat-pill pill-active w-100 text-center';
+                    if (t.type.includes('Loitering')) document.getElementById('pillLoitering').className = 'threat-pill pill-active w-100 text-center';
+                    if (t.type.includes('Crowd')) document.getElementById('pillCrowd').className = 'threat-pill pill-active w-100 text-center';
+                });
+            }
+        })
+        .catch(() => {});
+    }
+
+    function refreshIncidents() {
+        fetch('/api/incidents')
+        .then(r => r.json())
+        .then(incidents => {
+            const container = document.getElementById('incidentsList');
+            if (!incidents || incidents.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center py-5 text-muted">
+                        <i class="bi bi-shield-check" style="font-size:3rem;opacity:0.4;"></i>
+                        <p class="mt-2">No active threats detected.<br>AI is continuously scanning live feeds.</p>
+                    </div>`;
+                return;
+            }
+
+            container.innerHTML = incidents.map(inc => {
+                let statusBadgeClass = 'badge-pending';
+                if (inc.status === 'VERIFIED') statusBadgeClass = 'badge-verified';
+                if (inc.status === 'FALSE_ALARM') statusBadgeClass = 'badge-false';
+
+                return `
+                <div class="incident-package-card">
+                    <div class="d-flex justify-content-between align-items-start mb-2">
+                        <div>
+                            <span class="badge bg-danger me-1"><i class="bi bi-exclamation-octagon me-1"></i>${inc.threat_type}</span>
+                            <span class="badge ${statusBadgeClass}">${inc.status}</span>
+                        </div>
+                        <small class="text-muted">${inc.timestamp}</small>
+                    </div>
+
+                    <div class="row g-2 align-items-center">
+                        <div class="col-4">
+                            <img src="${inc.snapshot_url}" class="img-fluid rounded border border-secondary" alt="Snapshot" onerror="this.style.display='none'">
+                        </div>
+                        <div class="col-8 small">
+                            <div><strong>Camera:</strong> ${inc.camera_id}</div>
+                            <div><strong>Confidence:</strong> <span class="text-warning fw-bold">${inc.confidence}%</span></div>
+                            <div class="text-muted mt-1">${inc.details || ''}</div>
+                        </div>
+                    </div>
+
+                    <!-- Incident Verification Controls -->
+                    <div class="d-flex gap-1 mt-2 pt-2 border-top border-dark">
+                        <button class="btn btn-sm btn-danger flex-grow-1" onclick="verifyIncident('${inc.incident_id}', 'VERIFIED')">
+                            <i class="bi bi-check-circle me-1"></i> Verify & Escalate
+                        </button>
+                        <button class="btn btn-sm btn-outline-secondary" onclick="verifyIncident('${inc.incident_id}', 'FALSE_ALARM')">
+                            False Alarm
+                        </button>
+                    </div>
+                </div>`;
+            }).join('');
+        });
+    }
+
+    function verifyIncident(id, action) {
+        fetch('/api/verify_incident', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({incident_id: id, action: action})
+        })
+        .then(r => r.json())
+        .then(() => {
+            refreshIncidents();
+        });
+    }
+
+    function showRulesModal() {
+        new bootstrap.Modal(document.getElementById('rulesModal')).show();
+    }
+
+    function saveRules() {
+        const payload = {
+            loitering_threshold_seconds: parseFloat(document.getElementById('cfgLoiter').value),
+            crowd_surge_threshold: parseInt(document.getElementById('cfgCrowd').value),
+            motion_energy_threshold: parseFloat(document.getElementById('cfgMotion').value),
+            confidence_threshold: parseFloat(document.getElementById('cfgConf').value) / 100.0
+        };
+
+        fetch('/api/update_rules', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload)
+        })
+        .then(r => r.json())
+        .then(() => {
+            bootstrap.Modal.getInstance(document.getElementById('rulesModal')).hide();
+            alert('Rules updated successfully!');
+        });
+    }
+</script>
+{% endblock %}

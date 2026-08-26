@@ -1,0 +1,34 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+
+# Virtual Environments
+.env
+.venv
+env/
+venv/
+ENV/
+
+# Temporary user uploads and generated results
+uploads/*
+!uploads/.gitkeep
+results/*
+!results/.gitkeep
+!results/incident_snapshots/
+results/incident_snapshots/*
+!results/incident_snapshots/.gitkeep
+
+# System and IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log

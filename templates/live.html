@@ -1,0 +1,259 @@
+{% extends "base.html" %}
+{% block title %}Live Camera - AI Face Recognition{% endblock %}
+
+{% block extra_css %}
+<style>
+    .video-container {
+        position: relative;
+        background: #000;
+        border-radius: 12px;
+        overflow: hidden;
+        border: 2px solid #2d3045;
+    }
+    #videoFeed {
+        width: 100%;
+        max-height: 540px;
+        object-fit: contain;
+        display: block;
+    }
+    .status-bar {
+        background: rgba(0,0,0,0.85);
+        border-radius: 8px;
+        padding: 12px 16px;
+    }
+    .person-tag {
+        background: rgba(25,135,84,0.3);
+        border: 1px solid #198754;
+        color: #2ecc71;
+        padding: 5px 12px;
+        border-radius: 20px;
+        font-size: 0.85rem;
+        margin: 3px;
+        display: inline-block;
+    }
+    .unknown-tag {
+        background: rgba(220,53,69,0.3);
+        border: 1px solid #dc3545;
+        color: #ff6b6b;
+        padding: 5px 12px;
+        border-radius: 20px;
+        font-size: 0.85rem;
+        margin: 3px;
+        display: inline-block;
+        animation: pulse 1s infinite;
+    }
+    @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.6; }
+    }
+    .alert-flash {
+        background: rgba(220,53,69,0.15);
+        border: 1px solid #dc3545;
+        border-radius: 8px;
+        padding: 12px;
+        display: none;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row mb-3">
+    <div class="col-12 d-flex align-items-center justify-content-between">
+        <h2 class="section-title mb-0">
+            <i class="bi bi-camera-video me-2"></i>Live Webcam Recognition
+        </h2>
+        <div>
+            <button id="btnStart" class="btn btn-success me-2" onclick="startCamera()">
+                <i class="bi bi-play-fill me-1"></i>Start Camera
+            </button>
+            <button id="btnStop" class="btn btn-danger" onclick="stopCamera()" disabled>
+                <i class="bi bi-stop-fill me-1"></i>Stop Camera
+            </button>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3">
+    <!-- Video Feed -->
+    <div class="col-lg-8">
+        <div class="video-container">
+            <img id="videoFeed" src="" alt="Live Camera Feed"
+                 onerror="this.src=''" style="min-height:400px">
+            <div style="position:absolute;top:10px;right:10px">
+                <span id="liveIndicator" class="badge d-none"
+                      style="background:rgba(220,53,69,0.9);font-size:0.8rem">
+                    ● LIVE
+                </span>
+            </div>
+        </div>
+
+        <!-- Alert flash -->
+        <div id="alertFlash" class="alert-flash mt-3">
+            <i class="bi bi-exclamation-triangle-fill text-danger me-2"></i>
+            <strong class="text-danger">UNKNOWN PERSON DETECTED!</strong>
+            <span class="text-muted ms-2">A person not in the database was detected.</span>
+        </div>
+    </div>
+
+    <!-- Sidebar -->
+    <div class="col-lg-4">
+        <!-- Status -->
+        <div class="card mb-3">
+            <div class="card-header"><i class="bi bi-activity me-2"></i>Recognition Status</div>
+            <div class="card-body">
+                <div class="status-bar mb-2">
+                    <div class="d-flex justify-content-between mb-2">
+                        <span class="text-muted">Camera</span>
+                        <span id="cameraStatus"><span class="status-dot red"></span>Off</span>
+                    </div>
+                    <div class="d-flex justify-content-between mb-2">
+                        <span class="text-muted">Faces Detected</span>
+                        <span id="faceCount" class="text-warning">0</span>
+                    </div>
+                    <div class="d-flex justify-content-between mb-2">
+                        <span class="text-muted">Known</span>
+                        <span id="knownCount" class="text-success">0</span>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <span class="text-muted">Unknown</span>
+                        <span id="unknownCount" class="text-danger">0</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recognized persons -->
+        <div class="card mb-3">
+            <div class="card-header"><i class="bi bi-person-check me-2"></i>Recognized Persons</div>
+            <div class="card-body" id="recognizedList" style="min-height:80px">
+                <p class="text-muted text-center small">No persons detected</p>
+            </div>
+        </div>
+
+        <!-- Recent Alerts -->
+        <div class="card">
+            <div class="card-header"><i class="bi bi-bell me-2"></i>Recent Alerts</div>
+            <div class="card-body" id="alertsList" style="max-height:200px;overflow-y:auto">
+                <p class="text-muted text-center small">No alerts</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let cameraRunning = false;
+    let pollInterval = null;
+
+    function startCamera() {
+        fetch('/start_camera', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({source: 'webcam'})
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                cameraRunning = true;
+                document.getElementById('videoFeed').src = '/video_feed?' + Date.now();
+                document.getElementById('liveIndicator').classList.remove('d-none');
+                document.getElementById('cameraStatus').innerHTML = '<span class="status-dot green"></span>Running';
+                document.getElementById('btnStart').disabled = true;
+                document.getElementById('btnStop').disabled = false;
+                startPolling();
+            } else {
+                alert('Failed to start camera: ' + data.message);
+            }
+        });
+    }
+
+    function stopCamera() {
+        fetch('/stop_camera', {method: 'POST'})
+        .then(() => {
+            cameraRunning = false;
+            document.getElementById('videoFeed').src = '';
+            document.getElementById('liveIndicator').classList.add('d-none');
+            document.getElementById('cameraStatus').innerHTML = '<span class="status-dot red"></span>Off';
+            document.getElementById('btnStart').disabled = false;
+            document.getElementById('btnStop').disabled = true;
+            stopPolling();
+        });
+    }
+
+    function startPolling() {
+        pollInterval = setInterval(pollStatus, 1000);
+    }
+
+    function stopPolling() {
+        if (pollInterval) {
+            clearInterval(pollInterval);
+            pollInterval = null;
+        }
+    }
+
+    function pollStatus() {
+        if (!cameraRunning) return;
+        fetch('/recognition_status')
+        .then(r => r.json())
+        .then(data => {
+            document.getElementById('faceCount').textContent = data.total_faces || 0;
+            document.getElementById('knownCount').textContent = data.recognized ? data.recognized.length : 0;
+            document.getElementById('unknownCount').textContent = data.unknowns || 0;
+
+            // Update recognized list
+            const list = document.getElementById('recognizedList');
+            if (data.recognized && data.recognized.length > 0) {
+                list.innerHTML = data.recognized.map(p =>
+                    `<span class="person-tag"><i class="bi bi-person-check me-1"></i>${p.name} (${p.confidence}%)</span>`
+                ).join('');
+            } else {
+                list.innerHTML = '<p class="text-muted text-center small">No persons detected</p>';
+            }
+
+            // Show alert if unknown
+            const alertFlash = document.getElementById('alertFlash');
+            if (data.unknowns > 0) {
+                alertFlash.style.display = 'block';
+                // Play alert sound (browser beep)
+                if (window.AudioContext) {
+                    playAlertBeep();
+                }
+            } else {
+                alertFlash.style.display = 'none';
+            }
+
+            // Update alerts list
+            if (data.recent_alerts && data.recent_alerts.length > 0) {
+                const alertsList = document.getElementById('alertsList');
+                alertsList.innerHTML = data.recent_alerts.slice(0, 5).map(a =>
+                    `<div class="alert-item">
+                        <i class="bi bi-exclamation-circle text-danger me-1"></i>
+                        <small>${a.message}</small><br>
+                        <small class="text-muted">${new Date(a.timestamp).toLocaleTimeString()}</small>
+                    </div>`
+                ).join('');
+            }
+        })
+        .catch(() => {});
+    }
+
+    let lastBeep = 0;
+    function playAlertBeep() {
+        const now = Date.now();
+        if (now - lastBeep < 3000) return; // Beep max every 3 seconds
+        lastBeep = now;
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.frequency.value = 880;
+        osc.type = 'square';
+        gain.gain.setValueAtTime(0.3, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+        osc.start(ctx.currentTime);
+        osc.stop(ctx.currentTime + 0.3);
+    }
+</script>
+{% endblock %}
