@@ -1,41 +1,71 @@
 {% extends "base.html" %}
-{% block title %}Known Persons - AI Face Recognition{% endblock %}
+{% block title %}Known Identities Catalog - AegisAI{% endblock %}
+
+{% block extra_css %}
+<style>
+    .identity-card {
+        background: rgba(15, 23, 42, 0.8);
+        border: 1px solid var(--border-glass);
+        border-radius: 12px;
+        padding: 1rem 0.75rem;
+        text-align: center;
+        transition: all 0.2s ease;
+    }
+    .identity-card:hover {
+        background: rgba(22, 32, 54, 0.95);
+        border-color: rgba(56, 189, 248, 0.4);
+        transform: translateY(-2px);
+    }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="row mb-3">
-    <div class="col-12 d-flex align-items-center justify-content-between">
-        <h2 class="section-title mb-0">
-            <i class="bi bi-people me-2"></i>Known Persons Database
+<div class="row align-items-center mb-4 g-3">
+    <div class="col-md-7">
+        <h2 class="mb-1 d-flex align-items-center gap-2">
+            <i class="bi bi-people text-info"></i>
+            <span>Authorized Identities Catalog</span>
         </h2>
-        <a href="/add_person" class="btn btn-success btn-sm">
-            <i class="bi bi-person-plus me-1"></i>Add Person
+        <p class="text-secondary mb-0" style="font-size:0.9rem;">
+            {{ stats.total_persons }} verified personnel with 128D deep feature embeddings registered in the SFace index.
+        </p>
+    </div>
+    <div class="col-md-5 text-md-end">
+        <a href="/add_person" class="btn btn-glow-primary px-3">
+            <i class="bi bi-person-plus me-1"></i> Register New Identity
         </a>
     </div>
 </div>
 
 <div class="row g-3">
     <div class="col-12">
-        <div class="card">
-            <div class="card-header">
-                <i class="bi bi-database me-2"></i>
-                {{ stats.total_persons }} persons loaded from LFW Dataset
+        <div class="glass-card">
+            <div class="card-header-clean">
+                <span class="d-flex align-items-center gap-2">
+                    <i class="bi bi-database-check text-success"></i>
+                    <span>Registered Personnel Index</span>
+                </span>
+                <span class="badge badge-pulse badge-live">● 128D Deep L2 Embeddings Active</span>
             </div>
-            <div class="card-body">
+            <div class="card-body p-4">
                 {% if stats.persons %}
-                <div class="row row-cols-2 row-cols-md-4 row-cols-lg-6 g-2">
+                <div class="row row-cols-2 row-cols-md-3 row-cols-lg-4 row-cols-xl-6 g-3">
                     {% for person in stats.persons %}
                     <div class="col">
-                        <div class="p-2 text-center rounded"
-                             style="background:rgba(25,135,84,0.1);border:1px solid rgba(25,135,84,0.3)">
-                            <i class="bi bi-person-circle" style="font-size:1.8rem;color:#2ecc71"></i>
-                            <p class="mb-0 mt-1" style="font-size:0.78rem;color:#ccc">{{ person }}</p>
+                        <div class="identity-card">
+                            <div class="mb-2">
+                                <i class="bi bi-person-circle fs-2 text-info"></i>
+                            </div>
+                            <div class="text-white fw-semibold" style="font-size:0.85rem;">{{ person }}</div>
+                            <small class="badge badge-pulse badge-live mt-2" style="font-size:0.68rem;">Verified</small>
                         </div>
                     </div>
                     {% endfor %}
                 </div>
                 {% else %}
-                <div class="text-center py-5 text-muted">
-                    <i class="bi bi-database-x" style="font-size:3rem;opacity:0.3"></i>
-                    <p class="mt-3">No persons in database. Run dataset_setup.py then train_encodings.py</p>
+                <div class="text-center py-5 text-secondary">
+                    <i class="bi bi-database-x fs-1 opacity-25"></i>
+                    <p class="mt-3">No identity models loaded. Run dataset setup to initialize.</p>
                 </div>
                 {% endif %}
             </div>

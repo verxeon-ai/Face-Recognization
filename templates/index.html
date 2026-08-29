@@ -1,142 +1,344 @@
 {% extends "base.html" %}
-{% block title %}Dashboard - AI Face Recognition System{% endblock %}
+{% block title %}System Hub - AegisAI Threat Defense{% endblock %}
+
+{% block extra_css %}
+<style>
+    .stat-box {
+        padding: 1.25rem 1.5rem;
+        display: flex;
+        align-items: center;
+        gap: 1.2rem;
+    }
+    .stat-icon {
+        width: 52px;
+        height: 52px;
+        border-radius: 14px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.6rem;
+        flex-shrink: 0;
+    }
+    .stat-val {
+        font-size: 1.85rem;
+        font-weight: 800;
+        line-height: 1.1;
+        letter-spacing: -0.02em;
+    }
+    .stat-label {
+        font-size: 0.82rem;
+        color: var(--text-secondary);
+        font-weight: 500;
+        margin-top: 0.2rem;
+    }
+
+    .feature-card {
+        padding: 1.75rem 1.5rem;
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+        position: relative;
+        overflow: hidden;
+    }
+    .feature-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 3px;
+        background: linear-gradient(90deg, transparent, var(--card-accent, var(--accent-cyan)), transparent);
+        opacity: 0;
+        transition: opacity 0.3s ease;
+    }
+    .feature-card:hover::before {
+        opacity: 1;
+    }
+    .feature-icon-box {
+        width: 58px;
+        height: 58px;
+        border-radius: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.8rem;
+        margin-bottom: 1.2rem;
+        transition: transform 0.3s ease;
+    }
+    .feature-card:hover .feature-icon-box {
+        transform: scale(1.08);
+    }
+    .feature-title {
+        font-size: 1.15rem;
+        font-weight: 700;
+        color: #ffffff;
+        margin-bottom: 0.5rem;
+    }
+    .feature-desc {
+        font-size: 0.88rem;
+        color: #cbd5e1;
+        line-height: 1.55;
+        margin-bottom: 1.5rem;
+        flex-grow: 1;
+    }
+
+    .badge-identity {
+        background: rgba(15, 23, 42, 0.8);
+        border: 1px solid rgba(56, 189, 248, 0.2);
+        color: #e2e8f0;
+        padding: 0.4rem 0.85rem;
+        border-radius: 8px;
+        font-size: 0.8rem;
+        font-weight: 500;
+        margin: 3px;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        transition: all 0.2s ease;
+    }
+    .badge-identity:hover {
+        border-color: var(--accent-cyan);
+        background: rgba(56, 189, 248, 0.1);
+        color: #fff;
+    }
+</style>
+{% endblock %}
 
 {% block content %}
-<div class="row mb-4">
-    <div class="col-12">
-        <h2 class="section-title">
-            <i class="bi bi-speedometer2 me-2"></i>System Dashboard
+<!-- Header Section -->
+<div class="row align-items-center mb-4 g-3">
+    <div class="col-md-7">
+        <h2 class="mb-1 d-flex align-items-center gap-2">
+            <span>Enterprise Safety & Vision Hub</span>
+            <span class="badge badge-pulse badge-live">● SYSTEM ACTIVE</span>
         </h2>
+        <p class="text-secondary mb-0" style="font-size:0.95rem;">
+            Unified operational telemetry, camera feeds, and automated threat recognition sensors.
+        </p>
+    </div>
+    <div class="col-md-5 text-md-end d-flex justify-content-md-end gap-2">
+        <a href="/threat_dashboard" class="btn btn-glow-danger d-flex align-items-center gap-2">
+            <i class="bi bi-radar"></i> Launch Threat SOC
+        </a>
+        <a href="/multi_camera" class="btn btn-glass d-flex align-items-center gap-2">
+            <i class="bi bi-grid-3x3-gap-fill text-info"></i> Multi-Camera Wall
+        </a>
     </div>
 </div>
 
 <!-- Stats Row -->
 <div class="row g-3 mb-4">
-    <div class="col-md-3 col-6">
-        <div class="card stat-card">
-            <div class="stat-number">{{ stats.total_persons }}</div>
-            <div class="stat-label"><i class="bi bi-people me-1"></i>Known Persons</div>
-        </div>
-    </div>
-    <div class="col-md-3 col-6">
-        <div class="card stat-card">
-            <div class="stat-number" style="font-size:1.6rem; color: {% if stats.encodings_loaded %}#2ecc71{% else %}#e74c3c{% endif %}">
-                {% if stats.encodings_loaded %}ACTIVE{% else %}OFFLINE{% endif %}
+    <!-- Stat 1: Known Persons -->
+    <div class="col-sm-6 col-xl-3">
+        <div class="glass-card stat-box">
+            <div class="stat-icon" style="background: rgba(56, 189, 248, 0.12); color: var(--accent-cyan); border: 1px solid rgba(56, 189, 248, 0.25);">
+                <i class="bi bi-person-bounding-box"></i>
             </div>
-            <div class="stat-label"><i class="bi bi-database me-1"></i>Database Status</div>
-        </div>
-    </div>
-    <div class="col-md-3 col-6">
-        <div class="card stat-card">
-            <div class="stat-number" style="font-size:1.6rem; color: {% if stats.model_loaded %}#2ecc71{% else %}#e74c3c{% endif %}">
-                {% if stats.model_loaded %}ONLINE{% else %}OFFLINE{% endif %}
+            <div>
+                <div class="stat-val text-white">{{ stats.total_persons }}</div>
+                <div class="stat-label">Known Identities</div>
             </div>
-            <div class="stat-label"><i class="bi bi-cpu me-1"></i>Engine State</div>
         </div>
     </div>
-    <div class="col-md-3 col-6">
-        <div class="card stat-card">
-            <div class="stat-number" style="font-size:1.2rem;color:#4fc3f7;">YuNet + SVM</div>
-            <div class="stat-label"><i class="bi bi-diagram-3 me-1"></i>Recognition Model</div>
+
+    <!-- Stat 2: Database Status -->
+    <div class="col-sm-6 col-xl-3">
+        <div class="glass-card stat-box">
+            <div class="stat-icon" style="background: rgba(16, 185, 129, 0.12); color: var(--accent-emerald); border: 1px solid rgba(16, 185, 129, 0.25);">
+                <i class="bi bi-database-check"></i>
+            </div>
+            <div>
+                <div class="stat-val text-success">
+                    {% if stats.encodings_loaded %}ACTIVE{% else %}OFFLINE{% endif %}
+                </div>
+                <div class="stat-label">128D Embedding Index</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Stat 3: Threat Engine State -->
+    <div class="col-sm-6 col-xl-3">
+        <div class="glass-card stat-box">
+            <div class="stat-icon" style="background: rgba(99, 102, 241, 0.12); color: var(--accent-indigo); border: 1px solid rgba(99, 102, 241, 0.25);">
+                <i class="bi bi-cpu"></i>
+            </div>
+            <div>
+                <div class="stat-val" style="color:#a5b4fc;">ONLINE</div>
+                <div class="stat-label">YOLOv8 + Optical Flow</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Stat 4: Sensor Channels -->
+    <div class="col-sm-6 col-xl-3">
+        <div class="glass-card stat-box">
+            <div class="stat-icon" style="background: rgba(245, 158, 11, 0.12); color: var(--accent-amber); border: 1px solid rgba(245, 158, 11, 0.25);">
+                <i class="bi bi-camera-reels"></i>
+            </div>
+            <div>
+                <div class="stat-val text-warning">4 STREAMS</div>
+                <div class="stat-label">Multi-Camera Grid</div>
+            </div>
         </div>
     </div>
 </div>
 
-<!-- Feature Cards -->
+<!-- Primary Feature Cards -->
 <div class="row g-3 mb-4">
-    <div class="col-md-6 col-lg-3">
-        <div class="card h-100">
-            <div class="card-body text-center p-4">
-                <i class="bi bi-camera-video-fill" style="font-size:3rem;color:#4fc3f7"></i>
-                <h5 class="mt-3">Live Camera</h5>
-                <p class="text-muted small">Real-time face recognition using your PC webcam with instant person identification.</p>
-                <a href="/live" class="btn btn-primary w-100">
-                    <i class="bi bi-play-fill me-1"></i>Start Live Feed
-                </a>
+    <!-- Card 1: Live Threat SOC -->
+    <div class="col-md-6 col-xl-3">
+        <div class="glass-card feature-card" style="--card-accent: var(--accent-rose);">
+            <div class="feature-icon-box" style="background: rgba(244, 63, 94, 0.12); color: var(--accent-rose); border: 1px solid rgba(244, 63, 94, 0.25);">
+                <i class="bi bi-shield-lock-fill"></i>
             </div>
+            <h4 class="feature-title">SOC Threat Triage</h4>
+            <p class="feature-desc">
+                Real-time surveillance analytics detecting weapons, altercations, falls, loitering, and zone breaches with 10s video clips.
+            </p>
+            <a href="/threat_dashboard" class="btn btn-glow-danger w-100 d-flex align-items-center justify-content-center gap-2">
+                <i class="bi bi-radar"></i> Open Threat SOC
+            </a>
         </div>
     </div>
-    <div class="col-md-6 col-lg-3">
-        <div class="card h-100">
-            <div class="card-body text-center p-4">
-                <i class="bi bi-phone-fill" style="font-size:3rem;color:#a29bfe"></i>
-                <h5 class="mt-3">Phone Camera</h5>
-                <p class="text-muted small">Connect your phone as IP camera via DroidCam or IP Webcam app over Wi-Fi.</p>
-                <a href="/phone_camera" class="btn btn-primary w-100" style="background:#6c5ce7;border-color:#6c5ce7">
-                    <i class="bi bi-phone me-1"></i>Connect Phone
-                </a>
+
+    <!-- Card 2: Multi-Camera Surveillance Wall -->
+    <div class="col-md-6 col-xl-3">
+        <div class="glass-card feature-card" style="--card-accent: var(--accent-cyan);">
+            <div class="feature-icon-box" style="background: rgba(56, 189, 248, 0.12); color: var(--accent-cyan); border: 1px solid rgba(56, 189, 248, 0.25);">
+                <i class="bi bi-grid-3x3-gap-fill"></i>
             </div>
+            <h4 class="feature-title">Multi-Camera Wall</h4>
+            <p class="feature-desc">
+                4-Up concurrent security monitoring matrix supporting RTSP streams, IP cameras, and perimeter sensors.
+            </p>
+            <a href="/multi_camera" class="btn btn-glow-primary w-100 d-flex align-items-center justify-content-center gap-2">
+                <i class="bi bi-display"></i> Open 4-Up Grid
+            </a>
         </div>
     </div>
-    <div class="col-md-6 col-lg-3">
-        <div class="card h-100">
-            <div class="card-body text-center p-4">
-                <i class="bi bi-image-fill" style="font-size:3rem;color:#00b894"></i>
-                <h5 class="mt-3">Image Upload</h5>
-                <p class="text-muted small">Upload any photo to check if all persons in it are in the database.</p>
-                <a href="/upload_image" class="btn btn-success w-100">
-                    <i class="bi bi-upload me-1"></i>Upload Image
-                </a>
+
+    <!-- Card 3: Mobile Phone Streamer -->
+    <div class="col-md-6 col-xl-3">
+        <div class="glass-card feature-card" style="--card-accent: var(--accent-indigo);">
+            <div class="feature-icon-box" style="background: rgba(99, 102, 241, 0.12); color: var(--accent-indigo); border: 1px solid rgba(99, 102, 241, 0.25);">
+                <i class="bi bi-qr-code-scan"></i>
             </div>
+            <h4 class="feature-title">Mobile Streamer</h4>
+            <p class="feature-desc">
+                Instant 2-way QR code scan to turn any smartphone or tablet into a wireless HD surveillance camera without apps.
+            </p>
+            <a href="/phone_camera" class="btn btn-glass w-100 d-flex align-items-center justify-content-center gap-2">
+                <i class="bi bi-phone"></i> Connect Phone
+            </a>
         </div>
     </div>
-    <div class="col-md-6 col-lg-3">
-        <div class="card h-100">
-            <div class="card-body text-center p-4">
-                <i class="bi bi-film" style="font-size:3rem;color:#fd9644"></i>
-                <h5 class="mt-3">Video Upload</h5>
-                <p class="text-muted small">Upload a video to analyze every person appearing in it against the dataset.</p>
-                <a href="/upload_video" class="btn btn-warning w-100" style="color:#fff">
-                    <i class="bi bi-upload me-1"></i>Upload Video
+
+    <!-- Card 4: Video & Image Forensics -->
+    <div class="col-md-6 col-xl-3">
+        <div class="glass-card feature-card" style="--card-accent: var(--accent-emerald);">
+            <div class="feature-icon-box" style="background: rgba(16, 185, 129, 0.12); color: var(--accent-emerald); border: 1px solid rgba(16, 185, 129, 0.25);">
+                <i class="bi bi-file-earmark-play-fill"></i>
+            </div>
+            <h4 class="feature-title">Media Forensics</h4>
+            <p class="feature-desc">
+                Batch scan recorded surveillance videos or photos frame-by-frame to generate automated security incident audits.
+            </p>
+            <div class="d-flex gap-2">
+                <a href="/upload_video" class="btn btn-glass flex-grow-1 text-center py-2">
+                    <i class="bi bi-film me-1"></i> Video
+                </a>
+                <a href="/upload_image" class="btn btn-glass flex-grow-1 text-center py-2">
+                    <i class="bi bi-image me-1"></i> Photo
                 </a>
             </div>
         </div>
     </div>
 </div>
 
-<!-- How It Works + Known Persons -->
+<!-- Bottom Section: Known Persons Catalog & Architecture Specs -->
 <div class="row g-3">
-    <div class="col-md-7">
-        <div class="card">
-            <div class="card-header">
-                <i class="bi bi-people-fill me-2"></i>Known Persons in System
+    <!-- Known Identities Cloud -->
+    <div class="col-lg-7">
+        <div class="glass-card h-100">
+            <div class="card-header-clean">
+                <span class="d-flex align-items-center gap-2">
+                    <i class="bi bi-people-fill text-info"></i>
+                    <span>Known Identities Catalog</span>
+                </span>
+                <a href="/add_person" class="btn btn-sm btn-glass text-info py-1 px-3">
+                    <i class="bi bi-person-plus me-1"></i> Add Identity
+                </a>
             </div>
-            <div class="card-body">
+            <div class="card-body p-4">
                 {% if stats.persons %}
-                    <div>
+                    <div style="max-height: 240px; overflow-y: auto;">
                         {% for person in stats.persons %}
-                            <span class="badge-person">{{ person }}</span>
+                            <span class="badge-identity">
+                                <i class="bi bi-check-circle-fill text-success" style="font-size:0.75rem;"></i>
+                                {{ person }}
+                            </span>
                         {% endfor %}
                     </div>
-                    <div class="mt-3 text-muted small">
-                        <i class="bi bi-info-circle me-1"></i>
-                        {{ stats.total_persons }} persons loaded from LFW (Labeled Faces in the Wild) dataset
+                    <div class="mt-3 pt-3 border-top border-secondary d-flex justify-content-between align-items-center" style="border-color:var(--border-glass) !important;">
+                        <small class="text-secondary">
+                            <i class="bi bi-database me-1"></i> {{ stats.total_persons }} verified identities loaded from LFW Benchmark
+                        </small>
+                        <a href="/persons" class="text-decoration-none text-info small fw-bold">View Full Catalog &rarr;</a>
                     </div>
                 {% else %}
-                    <div class="text-center py-3 text-muted">
-                        <i class="bi bi-database-x" style="font-size:2rem"></i>
-                        <p class="mt-2">No persons loaded. Run <code>dataset_setup.py</code> then <code>train_encodings.py</code></p>
+                    <div class="text-center py-4 text-secondary">
+                        <i class="bi bi-database-x fs-1 opacity-50"></i>
+                        <p class="mt-2">No identity models loaded. Run dataset setup to initialize.</p>
                     </div>
                 {% endif %}
             </div>
         </div>
     </div>
-    <div class="col-md-5">
-        <div class="card h-100">
-            <div class="card-header">
-                <i class="bi bi-info-circle me-2"></i>System Info
+
+    <!-- Technical Architecture Specifications -->
+    <div class="col-lg-5">
+        <div class="glass-card h-100">
+            <div class="card-header-clean">
+                <span class="d-flex align-items-center gap-2">
+                    <i class="bi bi-shield-check text-success"></i>
+                    <span>Platform Technical Specs</span>
+                </span>
+                <span class="badge bg-dark border border-secondary text-info">v2.0 Enterprise</span>
             </div>
-            <div class="card-body">
-                <table class="table table-borderless table-sm text-white">
-                    <tr><td class="text-muted">Dataset</td><td><a href="http://vis-www.cs.umass.edu/lfw/" target="_blank" class="text-info">LFW - Labeled Faces in the Wild</a></td></tr>
-                    <tr><td class="text-muted">Face Embedding</td><td>OpenCV SFace (128D Deep Representation)</td></tr>
-                    <tr><td class="text-muted">Face Detection</td><td>OpenCV YuNet DNN (5-point Landmark Alignment)</td></tr>
-                    <tr><td class="text-muted">Threat Engine</td><td>Ultralytics YOLOv8 Nano</td></tr>
-                    <tr><td class="text-muted">Streaming Protocol</td><td>Flask MJPEG / HTML5 WebRTC Streamer</td></tr>
+            <div class="card-body p-0">
+                <table class="table table-clean">
+                    <tbody>
+                        <tr>
+                            <td class="text-secondary"><i class="bi bi-layers me-2"></i>Dataset Baseline</td>
+                            <td class="text-end fw-semibold">
+                                <a href="http://vis-www.cs.umass.edu/lfw/" target="_blank" class="text-info text-decoration-none">
+                                    LFW Benchmark <i class="bi bi-box-arrow-up-right small"></i>
+                                </a>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="text-secondary"><i class="bi bi-cpu me-2"></i>Face Embeddings</td>
+                            <td class="text-end fw-semibold text-white">OpenCV SFace (128D Embeddings)</td>
+                        </tr>
+                        <tr>
+                            <td class="text-secondary"><i class="bi bi-camera me-2"></i>Face Detector</td>
+                            <td class="text-end fw-semibold text-white">YuNet DNN (5-Point Landmarks)</td>
+                        </tr>
+                        <tr>
+                            <td class="text-secondary"><i class="bi bi-shield-exclamation me-2"></i>Threat Engine</td>
+                            <td class="text-end fw-semibold text-white">Ultralytics YOLOv8 + Farneback Flow</td>
+                        </tr>
+                        <tr>
+                            <td class="text-secondary"><i class="bi bi-film me-2"></i>Evidence Format</td>
+                            <td class="text-end fw-semibold text-white">10s MP4 Video + High-Res JPEG</td>
+                        </tr>
+                    </tbody>
                 </table>
-                <a href="/alerts" class="btn btn-danger btn-sm w-100">
-                    <i class="bi bi-bell me-1"></i>View Alert Log
-                </a>
+                <div class="p-3">
+                    <a href="/alerts" class="btn btn-glass w-100 d-flex align-items-center justify-content-center gap-2 text-danger">
+                        <i class="bi bi-shield-exclamation"></i> Open Security Audit Log
+                    </a>
+                </div>
             </div>
         </div>
     </div>

@@ -20,6 +20,10 @@ results/*
 !results/incident_snapshots/
 results/incident_snapshots/*
 !results/incident_snapshots/.gitkeep
+!results/incident_clips/
+results/incident_clips/*
+!results/incident_clips/.gitkeep
+*.partial
 
 # System and IDE
 .vscode/

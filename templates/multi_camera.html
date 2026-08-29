@@ -1,0 +1,286 @@
+{% extends "base.html" %}
+{% block title %}Multi-Camera Surveillance Wall - AegisAI{% endblock %}
+
+{% block extra_css %}
+<style>
+    .cam-grid-card {
+        background: #000;
+        border: 1px solid var(--border-glass);
+        border-radius: 16px;
+        overflow: hidden;
+        position: relative;
+        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
+        transition: all 0.25s ease;
+    }
+    .cam-grid-card:hover {
+        border-color: rgba(56, 189, 248, 0.4);
+        box-shadow: 0 12px 40px rgba(0, 0, 0, 0.7);
+    }
+    .cam-stream-img {
+        width: 100%;
+        height: 290px;
+        object-fit: cover;
+        display: block;
+        background: #07090e;
+    }
+    .cam-header-overlay {
+        position: absolute;
+        top: 12px;
+        left: 12px;
+        right: 12px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        z-index: 5;
+        pointer-events: none;
+    }
+    .cam-bottom-overlay {
+        position: absolute;
+        bottom: 10px;
+        left: 12px;
+        right: 12px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        z-index: 5;
+    }
+    .hud-stat-pill {
+        background: rgba(7, 9, 14, 0.85);
+        backdrop-filter: blur(8px);
+        border: 1px solid var(--border-glass);
+        border-radius: 20px;
+        padding: 4px 12px;
+        font-size: 0.75rem;
+        font-weight: 500;
+        color: var(--accent-cyan);
+        font-family: 'JetBrains Mono', monospace;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Header -->
+<div class="row align-items-center mb-3 g-3">
+    <div class="col-md-6">
+        <h2 class="mb-1 d-flex align-items-center gap-2">
+            <i class="bi bi-grid-3x3-gap-fill text-info"></i>
+            <span>Multi-Camera Surveillance Wall</span>
+        </h2>
+        <p class="text-secondary mb-0" style="font-size:0.9rem;">
+            4-Up Concurrent AI Security Matrix & Perimeter Health
+        </p>
+    </div>
+    <div class="col-md-6 text-md-end d-flex flex-wrap justify-content-md-end gap-2">
+        <span class="badge badge-pulse badge-live py-2 px-3">
+            <i class="bi bi-broadcast me-1"></i> 4 STREAMS ONLINE
+        </span>
+        <a href="/threat_dashboard" class="btn btn-glow-danger btn-sm px-3">
+            <i class="bi bi-radar me-1"></i> Open SOC Triage
+        </a>
+        <button class="btn btn-glass btn-sm px-3" onclick="openCamConfigModal()">
+            <i class="bi bi-gear-fill me-1 text-warning"></i> RTSP Feeds
+        </button>
+    </div>
+</div>
+
+<!-- 4-Up Camera Grid -->
+<div class="row g-3 mb-4">
+    <!-- Camera 1 -->
+    <div class="col-lg-6">
+        <div class="cam-grid-card">
+            <div class="cam-header-overlay">
+                <span class="badge bg-primary shadow-sm" style="font-size:0.8rem;">
+                    <i class="bi bi-camera-video-fill me-1"></i> CAM 01: Main Entrance
+                </span>
+                <span class="badge badge-pulse badge-live">● ALL CLEAR</span>
+            </div>
+            <img class="cam-stream-img" src="/threat_video_feed/1" alt="Camera 1 Stream">
+            <div class="cam-bottom-overlay">
+                <span class="hud-stat-pill"><i class="bi bi-cpu me-1"></i>YOLOv8 Edge AI</span>
+                <a href="/threat_dashboard" class="btn btn-sm btn-glass text-info py-0 px-2">
+                    <i class="bi bi-arrows-fullscreen"></i>
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Camera 2 -->
+    <div class="col-lg-6">
+        <div class="cam-grid-card">
+            <div class="cam-header-overlay">
+                <span class="badge shadow-sm" style="background:#6366f1;font-size:0.8rem;">
+                    <i class="bi bi-camera-video-fill me-1"></i> CAM 02: North Corridor
+                </span>
+                <span class="badge badge-pulse badge-live">● ALL CLEAR</span>
+            </div>
+            <img class="cam-stream-img" src="/threat_video_feed/2" alt="Camera 2 Stream">
+            <div class="cam-bottom-overlay">
+                <span class="hud-stat-pill"><i class="bi bi-activity me-1"></i>Optical Flow</span>
+                <a href="/threat_dashboard" class="btn btn-sm btn-glass text-info py-0 px-2">
+                    <i class="bi bi-arrows-fullscreen"></i>
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Camera 3 -->
+    <div class="col-lg-6">
+        <div class="cam-grid-card">
+            <div class="cam-header-overlay">
+                <span class="badge shadow-sm" style="background:#0284c7;font-size:0.8rem;">
+                    <i class="bi bi-camera-video-fill me-1"></i> CAM 03: East Parking Lot
+                </span>
+                <span class="badge badge-pulse badge-live">● ALL CLEAR</span>
+            </div>
+            <img class="cam-stream-img" src="/threat_video_feed/3" alt="Camera 3 Stream">
+            <div class="cam-bottom-overlay">
+                <span class="hud-stat-pill"><i class="bi bi-geo-alt me-1"></i>Perimeter Geofence</span>
+                <a href="/threat_dashboard" class="btn btn-sm btn-glass text-info py-0 px-2">
+                    <i class="bi bi-arrows-fullscreen"></i>
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Camera 4 -->
+    <div class="col-lg-6">
+        <div class="cam-grid-card">
+            <div class="cam-header-overlay">
+                <span class="badge shadow-sm" style="background:#d97706;font-size:0.8rem;">
+                    <i class="bi bi-camera-video-fill me-1"></i> CAM 04: Restricted Vault
+                </span>
+                <span class="badge badge-pulse badge-live">● ALL CLEAR</span>
+            </div>
+            <img class="cam-stream-img" src="/threat_video_feed/4" alt="Camera 4 Stream">
+            <div class="cam-bottom-overlay">
+                <span class="hud-stat-pill"><i class="bi bi-shield-lock me-1"></i>Secure Perimeter</span>
+                <a href="/threat_dashboard" class="btn btn-sm btn-glass text-info py-0 px-2">
+                    <i class="bi bi-arrows-fullscreen"></i>
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Bottom Multi-Camera Incident Stream -->
+<div class="glass-card">
+    <div class="card-header-clean">
+        <span class="d-flex align-items-center gap-2">
+            <i class="bi bi-clock-history text-info"></i>
+            <span>Multi-Camera Incident Timeline</span>
+        </span>
+        <a href="/threat_dashboard" class="text-info small text-decoration-none fw-semibold">Open Live Triage Queue &rarr;</a>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-clean">
+                <thead>
+                    <tr>
+                        <th>Incident ID</th>
+                        <th>Timestamp</th>
+                        <th>Camera Source</th>
+                        <th>Threat Category</th>
+                        <th>Confidence</th>
+                        <th>Status</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for inc in incidents %}
+                    <tr>
+                        <td><code class="mono text-info">{{ inc.incident_id }}</code></td>
+                        <td class="text-secondary mono">{{ inc.timestamp }}</td>
+                        <td class="text-white fw-medium">{{ inc.camera_id }}</td>
+                        <td>
+                            <span class="badge bg-danger"><i class="bi bi-exclamation-triangle me-1"></i>{{ inc.threat_type }}</span>
+                        </td>
+                        <td><span class="text-warning fw-bold">{{ inc.confidence }}%</span></td>
+                        <td>
+                            {% if inc.status == 'Pending Review' %}
+                            <span class="badge bg-warning text-dark">Pending Review</span>
+                            {% elif inc.status == 'VERIFIED' %}
+                            <span class="badge bg-danger">Escalated</span>
+                            {% else %}
+                            <span class="badge bg-secondary">{{ inc.status }}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <a href="/threat_dashboard" class="btn btn-sm btn-glass text-info py-0 px-2">Review</a>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="7" class="text-center py-4 text-secondary">No security incidents logged across cameras.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Camera Config Modal -->
+<div class="modal fade" id="camConfigModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content" style="background:#0e131f;color:#fff;border:1px solid var(--border-glass);">
+            <div class="modal-header border-bottom border-secondary" style="border-color:var(--border-glass) !important;">
+                <h5 class="modal-title d-flex align-items-center gap-2">
+                    <i class="bi bi-gear-fill text-warning"></i>
+                    <span>RTSP & Camera Feed Settings</span>
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="mb-3">
+                    <label class="form-label text-secondary small fw-semibold">Select Camera Channel:</label>
+                    <select class="form-select" id="cfgCamSelect" style="background:#07090e;color:#fff;border:1px solid var(--border-glass);">
+                        <option value="1">Camera 01 - Main Entrance</option>
+                        <option value="2">Camera 02 - North Corridor</option>
+                        <option value="3">Camera 03 - East Parking Lot</option>
+                        <option value="4">Camera 04 - Restricted Vault</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label text-secondary small fw-semibold">Camera Display Name:</label>
+                    <input type="text" class="form-control" id="cfgCamName" placeholder="e.g. North Entrance Gate" style="background:#07090e;color:#fff;border:1px solid var(--border-glass);">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label text-secondary small fw-semibold">RTSP / IP Video URL (or 0 for Local Webcam):</label>
+                    <input type="text" class="form-control" id="cfgCamUrl" placeholder="rtsp://user:pass@192.168.1.100:554/stream" style="background:#07090e;color:#fff;border:1px solid var(--border-glass);">
+                    <small class="text-secondary">Leave empty to use AI sensor simulation.</small>
+                </div>
+            </div>
+            <div class="modal-footer border-top border-secondary" style="border-color:var(--border-glass) !important;">
+                <button type="button" class="btn btn-glass" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-glow-primary" onclick="saveCamConfig()">Save Camera Stream</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function openCamConfigModal() {
+    new bootstrap.Modal(document.getElementById('camConfigModal')).show();
+}
+
+function saveCamConfig() {
+    const camId = document.getElementById('cfgCamSelect').value;
+    const name = document.getElementById('cfgCamName').value.trim();
+    const url = document.getElementById('cfgCamUrl').value.trim();
+
+    fetch('/api/cameras', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cam_id: camId, name: name, url: url })
+    })
+    .then(res => res.json())
+    .then(data => {
+        alert('Camera stream configuration updated successfully!');
+        location.reload();
+    })
+    .catch(err => alert('Error updating camera: ' + err));
+}
+</script>
+{% endblock %}

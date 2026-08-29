@@ -1,53 +1,56 @@
 {% extends "base.html" %}
-{% block title %}Upload Image - AI Face Recognition{% endblock %}
+{% block title %}Image Triage & Identification - AegisAI{% endblock %}
 
 {% block extra_css %}
 <style>
     .drop-zone {
-        border: 2px dashed #2d3045;
-        border-radius: 12px;
-        padding: 40px;
+        border: 2px dashed rgba(56, 189, 248, 0.3);
+        border-radius: 16px;
+        padding: 40px 20px;
         text-align: center;
         cursor: pointer;
-        transition: all 0.3s;
-        background: rgba(79,195,247,0.03);
+        transition: all 0.3s ease;
+        background: rgba(56, 189, 248, 0.03);
     }
     .drop-zone:hover, .drop-zone.drag-over {
-        border-color: #4fc3f7;
-        background: rgba(79,195,247,0.08);
-    }
-    .result-box {
-        background: #0d1117;
-        border-radius: 10px;
-        padding: 20px;
-        border: 1px solid #2d3045;
+        border-color: var(--accent-cyan);
+        background: rgba(56, 189, 248, 0.08);
+        transform: scale(1.01);
     }
     .person-chip {
-        background: rgba(25,135,84,0.2);
-        border: 1px solid #198754;
-        color: #2ecc71;
+        background: rgba(16, 185, 129, 0.15);
+        border: 1px solid rgba(16, 185, 129, 0.4);
+        color: #34d399;
         padding: 6px 14px;
         border-radius: 20px;
         margin: 3px;
-        display: inline-block;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
         font-size: 0.85rem;
+        font-weight: 600;
     }
     .unknown-chip {
-        background: rgba(220,53,69,0.2);
-        border: 1px solid #dc3545;
-        color: #ff6b6b;
+        background: rgba(244, 63, 94, 0.2);
+        border: 1px solid rgba(244, 63, 94, 0.5);
+        color: #fb7185;
         padding: 6px 14px;
         border-radius: 20px;
         margin: 3px;
-        display: inline-block;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
         font-size: 0.85rem;
+        font-weight: 600;
+        animation: pulseAlert 1.2s infinite;
     }
-    .result-img { max-width: 100%; border-radius: 8px; border: 1px solid #2d3045; }
+    .result-img { max-width: 100%; border-radius: 12px; border: 1px solid var(--border-glass); }
     .spinner-overlay {
         display: none;
         position: fixed;
         inset: 0;
-        background: rgba(0,0,0,0.7);
+        background: rgba(7, 9, 14, 0.85);
+        backdrop-filter: blur(12px);
         z-index: 9999;
         align-items: center;
         justify-content: center;
@@ -59,40 +62,43 @@
 {% block content %}
 <!-- Spinner -->
 <div class="spinner-overlay" id="spinner">
-    <div class="spinner-border text-info" style="width:4rem;height:4rem"></div>
-    <p class="text-white mt-3 fs-5">Analyzing image...</p>
+    <div class="spinner-border text-info" style="width:3.5rem;height:3.5rem"></div>
+    <p class="text-white mt-3 fs-5 fw-semibold">Executing YuNet & SFace 128D Deep Feature Scan...</p>
 </div>
 
-<div class="row mb-3">
-    <div class="col">
-        <h2 class="section-title">
-            <i class="bi bi-image me-2"></i>Upload Image for Analysis
+<div class="row align-items-center mb-4 g-3">
+    <div class="col-md-8">
+        <h2 class="mb-1 d-flex align-items-center gap-2">
+            <i class="bi bi-image text-info"></i>
+            <span>Forensic Image Triage & Scanning</span>
         </h2>
-        <p class="text-muted">Upload any photo to detect and identify all persons in it. Unknown persons will be flagged.</p>
+        <p class="text-secondary mb-0" style="font-size:0.9rem;">
+            Upload high-resolution surveillance photos for multi-face detection, identity verification, and unknown threat logging.
+        </p>
     </div>
 </div>
 
 <div class="row g-3">
     <div class="col-lg-5">
-        <div class="card">
-            <div class="card-header"><i class="bi bi-upload me-2"></i>Select Image</div>
-            <div class="card-body">
+        <div class="glass-card">
+            <div class="card-header-clean"><i class="bi bi-upload text-info me-2"></i>Select or Drop Image File</div>
+            <div class="card-body p-4">
                 <div class="drop-zone" id="dropZone" onclick="document.getElementById('imageInput').click()">
-                    <i class="bi bi-cloud-upload" style="font-size:3rem;color:#4fc3f7"></i>
-                    <p class="mt-2 mb-0">Drag & drop or click to select</p>
-                    <small class="text-muted">JPG, PNG, BMP, WEBP supported</small>
+                    <i class="bi bi-cloud-arrow-up-fill" style="font-size:3.2rem; color:var(--accent-cyan);"></i>
+                    <p class="mt-2 mb-1 fw-semibold text-white">Drag & drop photo or click to browse</p>
+                    <small class="text-secondary">Supported: JPG, PNG, BMP, WEBP (Max 500MB)</small>
                 </div>
                 <input type="file" id="imageInput" accept="image/*" style="display:none" onchange="handleFileSelect(event)">
 
                 <!-- Preview -->
                 <div id="previewSection" class="mt-3 d-none">
                     <img id="previewImg" class="result-img" alt="Preview">
-                    <div class="mt-2 d-flex gap-2">
-                        <button class="btn btn-success flex-grow-1" onclick="analyzeImage()">
-                            <i class="bi bi-search me-1"></i>Analyze
+                    <div class="mt-3 d-flex gap-2">
+                        <button class="btn btn-glow-primary flex-grow-1" onclick="analyzeImage()">
+                            <i class="bi bi-search me-1"></i> Scan & Identify Faces
                         </button>
-                        <button class="btn btn-outline-secondary" onclick="clearImage()">
-                            <i class="bi bi-x"></i>
+                        <button class="btn btn-glass px-3" onclick="clearImage()">
+                            <i class="bi bi-x-lg"></i>
                         </button>
                     </div>
                 </div>
@@ -100,62 +106,50 @@
         </div>
     </div>
 
+    <!-- Results Section -->
     <div class="col-lg-7">
-        <div id="resultsSection" class="d-none">
-            <!-- Alert Banner -->
-            <div id="alertBanner" class="p-3 rounded mb-3 d-none"
-                 style="background:rgba(220,53,69,0.15);border:1px solid #dc3545">
-                <i class="bi bi-exclamation-triangle-fill text-danger me-2"></i>
-                <strong class="text-danger">ALERT! Unknown persons detected in this image!</strong>
+        <div class="glass-card h-100">
+            <div class="card-header-clean">
+                <span class="d-flex align-items-center gap-2">
+                    <i class="bi bi-person-bounding-box text-success"></i>
+                    <span>Recognition Forensics Report</span>
+                </span>
+                <span id="scanStatusBadge" class="badge badge-pulse badge-live d-none">● SCAN COMPLETE</span>
             </div>
-            <div id="safeBanner" class="p-3 rounded mb-3 d-none"
-                 style="background:rgba(25,135,84,0.15);border:1px solid #198754">
-                <i class="bi bi-shield-check text-success me-2"></i>
-                <strong class="text-success">All persons in this image are in the dataset.</strong>
-            </div>
-
-            <div class="row g-3">
-                <!-- Annotated Result -->
-                <div class="col-12">
-                    <div class="card">
-                        <div class="card-header"><i class="bi bi-camera me-2"></i>Annotated Result</div>
-                        <div class="card-body p-2">
-                            <img id="resultImg" class="result-img w-100" alt="Analysis Result">
-                        </div>
-                    </div>
+            <div class="card-body p-4" id="resultsBody">
+                <div id="noResults" class="text-center py-5 text-secondary">
+                    <i class="bi bi-image fs-1 opacity-25"></i>
+                    <p class="mt-2">Upload and analyze an image to view bounding boxes and cosine similarity metrics.</p>
                 </div>
 
-                <!-- Stats -->
-                <div class="col-12">
-                    <div class="card">
-                        <div class="card-header"><i class="bi bi-bar-chart me-2"></i>Analysis Results</div>
-                        <div class="card-body">
-                            <div class="row text-center g-2 mb-3">
-                                <div class="col-4">
-                                    <div style="font-size:1.8rem;font-weight:700;color:#4fc3f7" id="totalFaces">0</div>
-                                    <small class="text-muted">Total Faces</small>
-                                </div>
-                                <div class="col-4">
-                                    <div style="font-size:1.8rem;font-weight:700;color:#2ecc71" id="recognizedCount">0</div>
-                                    <small class="text-muted">Recognized</small>
-                                </div>
-                                <div class="col-4">
-                                    <div style="font-size:1.8rem;font-weight:700;color:#e74c3c" id="unknownCountImg">0</div>
-                                    <small class="text-muted">Unknown</small>
-                                </div>
+                <div id="resultsContent" class="d-none">
+                    <!-- Annotated Image Display -->
+                    <div class="text-center mb-3">
+                        <img id="resultImg" class="result-img shadow-lg" alt="Analysis Result">
+                    </div>
+
+                    <!-- Metrics Badges -->
+                    <div class="p-3 rounded-3 mb-3" style="background:#07090e; border:1px solid var(--border-glass);">
+                        <div class="row g-2 text-center">
+                            <div class="col-4">
+                                <div class="text-secondary small">Total Detected</div>
+                                <div class="fw-bold fs-4 text-white" id="rTotal">0</div>
                             </div>
-                            <div id="personsList"></div>
+                            <div class="col-4">
+                                <div class="text-secondary small">Verified Known</div>
+                                <div class="fw-bold fs-4 text-success" id="rKnown">0</div>
+                            </div>
+                            <div class="col-4">
+                                <div class="text-secondary small">Unauthorized</div>
+                                <div class="fw-bold fs-4 text-danger" id="rUnknown">0</div>
+                            </div>
                         </div>
                     </div>
-                </div>
-            </div>
-        </div>
 
-        <!-- Placeholder -->
-        <div id="placeholder" class="card" style="min-height:300px">
-            <div class="card-body d-flex align-items-center justify-content-center flex-column text-center">
-                <i class="bi bi-image text-muted" style="font-size:4rem;opacity:0.3"></i>
-                <p class="text-muted mt-3">Upload an image to see face recognition results here</p>
+                    <!-- Identities List -->
+                    <div class="mb-2 text-secondary small fw-semibold">IDENTIFIED PERSONS:</div>
+                    <div id="identifiedList" class="mb-3"></div>
+                </div>
             </div>
         </div>
     </div>
@@ -166,85 +160,74 @@
 <script>
     let selectedFile = null;
 
-    // Drag and drop
-    const dropZone = document.getElementById('dropZone');
-    dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
-    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
-    dropZone.addEventListener('drop', e => {
-        e.preventDefault();
-        dropZone.classList.remove('drag-over');
-        const file = e.dataTransfer.files[0];
-        if (file && file.type.startsWith('image/')) processFile(file);
-    });
-
-    function handleFileSelect(event) {
-        const file = event.target.files[0];
-        if (file) processFile(file);
-    }
-
-    function processFile(file) {
+    function handleFileSelect(e) {
+        const file = e.target.files[0];
+        if (!file) return;
         selectedFile = file;
         const reader = new FileReader();
-        reader.onload = e => {
-            document.getElementById('previewImg').src = e.target.result;
+        reader.onload = function(evt) {
+            document.getElementById('previewImg').src = evt.target.result;
             document.getElementById('previewSection').classList.remove('d-none');
+            document.getElementById('dropZone').classList.add('d-none');
         };
         reader.readAsDataURL(file);
     }
 
     function clearImage() {
         selectedFile = null;
-        document.getElementById('previewSection').classList.add('d-none');
-        document.getElementById('resultsSection').classList.add('d-none');
-        document.getElementById('placeholder').classList.remove('d-none');
         document.getElementById('imageInput').value = '';
+        document.getElementById('previewSection').classList.add('d-none');
+        document.getElementById('dropZone').classList.remove('d-none');
+        document.getElementById('resultsContent').classList.add('d-none');
+        document.getElementById('noResults').classList.remove('d-none');
+        document.getElementById('scanStatusBadge').classList.add('d-none');
     }
 
     function analyzeImage() {
         if (!selectedFile) return;
-
-        document.getElementById('spinner').style.display = 'flex';
+        const spinner = document.getElementById('spinner');
+        spinner.style.display = 'flex';
 
         const formData = new FormData();
         formData.append('image', selectedFile);
 
-        fetch('/upload_image', { method: 'POST', body: formData })
+        fetch('/upload_image', {
+            method: 'POST',
+            body: formData
+        })
         .then(r => r.json())
         .then(data => {
-            document.getElementById('spinner').style.display = 'none';
-
+            spinner.style.display = 'none';
             if (data.error) {
                 alert('Error: ' + data.error);
                 return;
             }
 
-            document.getElementById('placeholder').classList.add('d-none');
-            document.getElementById('resultsSection').classList.remove('d-none');
+            document.getElementById('noResults').classList.add('d-none');
+            document.getElementById('resultsContent').classList.remove('d-none');
+            document.getElementById('scanStatusBadge').classList.remove('d-none');
+
             document.getElementById('resultImg').src = data.result_image;
 
-            const r = data.results;
-            document.getElementById('totalFaces').textContent = r.total_faces;
-            document.getElementById('recognizedCount').textContent = r.recognized_persons.length;
-            document.getElementById('unknownCountImg').textContent = r.unknown_persons;
+            const res = data.results || {};
+            document.getElementById('rTotal').textContent = res.total_faces || 0;
+            document.getElementById('rKnown').textContent = (res.recognized_persons || []).length;
+            document.getElementById('rUnknown').textContent = res.unknown_persons || 0;
 
-            // Banners
-            document.getElementById('alertBanner').classList.toggle('d-none', !data.alert);
-            document.getElementById('safeBanner').classList.toggle('d-none', data.alert || r.total_faces === 0);
+            const list = document.getElementById('identifiedList');
+            list.innerHTML = '';
 
-            // Persons list
-            let html = '';
-            r.recognized_persons.forEach(p => {
-                html += `<span class="person-chip"><i class="bi bi-person-check me-1"></i>${p.name} (${p.confidence}%)</span>`;
+            (res.recognized_persons || []).forEach(p => {
+                list.innerHTML += `<span class="person-chip"><i class="bi bi-check-circle-fill"></i> ${p.name} (${Math.round(p.confidence)}%)</span>`;
             });
-            if (r.unknown_persons > 0) {
-                html += `<span class="unknown-chip"><i class="bi bi-person-x me-1"></i>Unknown Person${r.unknown_persons > 1 ? 's' : ''} (${r.unknown_persons})</span>`;
+
+            for (let i = 0; i < (res.unknown_persons || 0); i++) {
+                list.innerHTML += `<span class="unknown-chip"><i class="bi bi-exclamation-triangle-fill"></i> Unauthorized Person #${i+1}</span>`;
             }
-            if (!html) html = '<p class="text-muted small">No faces detected in image</p>';
-            document.getElementById('personsList').innerHTML = html;
         })
         .catch(err => {
-            document.getElementById('spinner').style.display = 'none';
-            alert('Analysis failed. Make sure the system is trained (run train_encodings.py).');
+            spinner.style.display = 'none';
+            alert('Failed to analyze image: ' + err);
         });
     }
 </script>

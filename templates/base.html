@@ -3,171 +3,402 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}AI Face Recognition System{% endblock %}</title>
+    <title>{% block title %}AegisAI - Video Threat Recognition Platform{% endblock %}</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Bootstrap 5 & Icons -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+    
     <style>
         :root {
-            --primary: #0d6efd;
-            --success: #198754;
-            --danger: #dc3545;
-            --dark-bg: #0f1117;
-            --card-bg: #1a1d2e;
-            --border: #2d3045;
+            --bg-base: #07090e;
+            --bg-surface: #0e131f;
+            --bg-card: rgba(18, 24, 38, 0.75);
+            --bg-card-hover: rgba(25, 33, 52, 0.9);
+            --border-glass: rgba(255, 255, 255, 0.08);
+            --border-glow: rgba(56, 189, 248, 0.35);
+            
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+            
+            --accent-cyan: #38bdf8;
+            --accent-blue: #3b82f6;
+            --accent-indigo: #6366f1;
+            --accent-emerald: #10b981;
+            --accent-rose: #f43f5e;
+            --accent-amber: #f59e0b;
         }
+
+        * {
+            box-sizing: border-box;
+        }
+
         body {
-            background: var(--dark-bg);
-            color: #e0e0e0;
-            font-family: 'Segoe UI', system-ui, sans-serif;
+            background-color: var(--bg-base);
+            background-image: 
+                radial-gradient(at 0% 0%, rgba(56, 189, 248, 0.08) 0px, transparent 50%),
+                radial-gradient(at 100% 0%, rgba(99, 102, 241, 0.08) 0px, transparent 50%),
+                radial-gradient(at 50% 100%, rgba(15, 23, 42, 0.8) 0px, transparent 100%);
+            background-attachment: fixed;
+            color: var(--text-primary);
+            font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow-x: hidden;
         }
+
+        /* Typography */
+        h1, h2, h3, h4, h5, h6 {
+            color: var(--text-primary);
+            font-weight: 700;
+            letter-spacing: -0.02em;
+        }
+
+        .mono {
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        /* Top Navbar */
+        .navbar-custom {
+            background: rgba(7, 9, 14, 0.85);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border-bottom: 1px solid var(--border-glass);
+            padding: 0.85rem 1.5rem;
+            position: sticky;
+            top: 0;
+            z-index: 1050;
+        }
+
         .navbar-brand {
-            font-weight: 700;
-            font-size: 1.3rem;
-            color: #4fc3f7 !important;
+            font-weight: 800;
+            font-size: 1.35rem;
+            color: var(--text-primary) !important;
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            letter-spacing: -0.03em;
         }
-        .navbar {
-            background: #0d1117 !important;
-            border-bottom: 1px solid var(--border);
+
+        .brand-icon-box {
+            width: 36px;
+            height: 36px;
+            background: linear-gradient(135deg, var(--accent-cyan), var(--accent-indigo));
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 0 16px rgba(56, 189, 248, 0.4);
+            color: #fff;
+            font-size: 1.1rem;
         }
-        .nav-link { color: #adb5bd !important; }
-        .nav-link:hover, .nav-link.active { color: #4fc3f7 !important; }
-        .card {
-            background: var(--card-bg);
-            border: 1px solid var(--border);
-            border-radius: 12px;
+
+        .nav-link {
+            color: var(--text-secondary) !important;
+            font-weight: 500;
+            font-size: 0.92rem;
+            padding: 0.5rem 0.9rem !important;
+            border-radius: 8px;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
         }
-        .card-header {
-            background: rgba(79, 195, 247, 0.08);
-            border-bottom: 1px solid var(--border);
+
+        .nav-link:hover {
+            color: var(--accent-cyan) !important;
+            background: rgba(56, 189, 248, 0.08);
+        }
+
+        .nav-link.active {
+            color: #fff !important;
+            background: linear-gradient(135deg, rgba(56, 189, 248, 0.15), rgba(99, 102, 241, 0.15));
+            border: 1px solid rgba(56, 189, 248, 0.3);
+            box-shadow: 0 0 12px rgba(56, 189, 248, 0.15);
+        }
+
+        /* Glassmorphism Cards */
+        .glass-card {
+            background: var(--bg-card);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--border-glass);
+            border-radius: 16px;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .glass-card:hover {
+            border-color: rgba(56, 189, 248, 0.25);
+            box-shadow: 0 12px 40px 0 rgba(0, 0, 0, 0.45);
+        }
+
+        .card-header-clean {
+            background: rgba(255, 255, 255, 0.02);
+            border-bottom: 1px solid var(--border-glass);
+            padding: 1rem 1.25rem;
             font-weight: 600;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
         }
-        .stat-card {
-            text-align: center;
-            padding: 20px;
+
+        /* Buttons */
+        .btn-glow-primary {
+            background: linear-gradient(135deg, #0284c7, #2563eb);
+            color: #fff;
+            font-weight: 600;
+            border: none;
+            border-radius: 10px;
+            padding: 0.65rem 1.2rem;
+            box-shadow: 0 4px 16px rgba(37, 99, 235, 0.35);
+            transition: all 0.2s ease;
         }
-        .stat-number {
-            font-size: 2.5rem;
-            font-weight: 700;
-            color: #4fc3f7;
+
+        .btn-glow-primary:hover {
+            background: linear-gradient(135deg, #0ea5e9, #3b82f6);
+            color: #fff;
+            box-shadow: 0 6px 22px rgba(56, 189, 248, 0.5);
+            transform: translateY(-1px);
         }
-        .stat-label {
-            color: #888;
+
+        .btn-glow-danger {
+            background: linear-gradient(135deg, #e11d48, #be123c);
+            color: #fff;
+            font-weight: 600;
+            border: none;
+            border-radius: 10px;
+            box-shadow: 0 4px 16px rgba(225, 29, 72, 0.35);
+            transition: all 0.2s ease;
+        }
+
+        .btn-glow-danger:hover {
+            background: linear-gradient(135deg, #f43f5e, #e11d48);
+            color: #fff;
+            box-shadow: 0 6px 22px rgba(244, 63, 94, 0.5);
+            transform: translateY(-1px);
+        }
+
+        .btn-glass {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border-glass);
+            color: var(--text-primary);
+            font-weight: 500;
+            border-radius: 10px;
+            transition: all 0.2s ease;
+        }
+
+        .btn-glass:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+
+        /* Badges */
+        .badge-pulse {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            padding: 0.35rem 0.8rem;
+            border-radius: 20px;
+            font-weight: 600;
+            font-size: 0.78rem;
+        }
+
+        .badge-live {
+            background: rgba(16, 185, 129, 0.15);
+            border: 1px solid rgba(16, 185, 129, 0.4);
+            color: #34d399;
+        }
+
+        .badge-alert {
+            background: rgba(244, 63, 94, 0.2);
+            border: 1px solid rgba(244, 63, 94, 0.5);
+            color: #fb7185;
+            animation: pulseAlert 1.5s infinite;
+        }
+
+        @keyframes pulseAlert {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(244, 63, 94, 0.4); }
+            50% { box-shadow: 0 0 0 8px rgba(244, 63, 94, 0); }
+        }
+
+        /* Clean Table Style */
+        .table-clean {
+            --bs-table-bg: transparent;
+            --bs-table-color: var(--text-primary);
+            --bs-table-border-color: var(--border-glass);
+            margin-bottom: 0;
+        }
+
+        .table-clean th {
+            color: var(--text-muted);
+            font-size: 0.78rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            font-weight: 600;
+            padding: 0.85rem 1rem;
+            border-bottom: 1px solid var(--border-glass);
+        }
+
+        .table-clean td {
+            padding: 0.85rem 1rem;
+            vertical-align: middle;
+            border-bottom: 1px solid var(--border-glass);
             font-size: 0.9rem;
         }
-        .badge-person {
-            background: rgba(25, 135, 84, 0.2);
-            border: 1px solid #198754;
-            color: #2ecc71;
-            padding: 4px 10px;
-            border-radius: 20px;
-            font-size: 0.8rem;
-            margin: 2px;
-            display: inline-block;
+
+        /* Custom Scrollbars */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
         }
-        .alert-item {
-            background: rgba(220, 53, 69, 0.1);
-            border: 1px solid rgba(220, 53, 69, 0.3);
-            border-radius: 8px;
-            padding: 10px 15px;
-            margin-bottom: 8px;
+        ::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.2);
         }
-        .btn-primary { background: #0d6efd; border-color: #0d6efd; }
-        .btn-success { background: #198754; border-color: #198754; }
-        .btn-danger { background: #dc3545; border-color: #dc3545; }
-        .section-title {
-            color: #4fc3f7;
-            font-weight: 600;
-            margin-bottom: 1rem;
-            padding-bottom: 0.5rem;
-            border-bottom: 1px solid var(--border);
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 4px;
         }
-        .status-dot {
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-            display: inline-block;
-            margin-right: 6px;
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(56, 189, 248, 0.4);
         }
-        .status-dot.green { background: #2ecc71; box-shadow: 0 0 8px #2ecc71; }
-        .status-dot.red { background: #e74c3c; box-shadow: 0 0 8px #e74c3c; }
-        .status-dot.yellow { background: #f39c12; box-shadow: 0 0 8px #f39c12; }
+
+        /* Footer */
         footer {
-            background: #0d1117;
-            border-top: 1px solid var(--border);
-            color: #666;
-            padding: 15px 0;
-            margin-top: 40px;
+            background: rgba(7, 9, 14, 0.9);
+            border-top: 1px solid var(--border-glass);
+            padding: 1.25rem 0;
+            color: var(--text-muted);
+            font-size: 0.85rem;
+            margin-top: auto;
         }
     </style>
     {% block extra_css %}{% endblock %}
 </head>
 <body>
-<nav class="navbar navbar-expand-lg navbar-dark">
+
+<!-- Top Navigation -->
+<nav class="navbar navbar-expand-xl navbar-custom">
     <div class="container-fluid">
         <a class="navbar-brand" href="/">
-            <i class="bi bi-shield-check me-2" style="color:#4fc3f7"></i>Vision Security System
+            <div class="brand-icon-box">
+                <i class="bi bi-shield-shaded"></i>
+            </div>
+            <div>
+                <span>Aegis<span style="color:var(--accent-cyan);">AI</span></span>
+                <small class="d-block" style="font-size:0.65rem; color:var(--text-muted); font-weight:500; letter-spacing:0.04em;">VIDEO THREAT DEFENSE</small>
+            </div>
         </a>
-        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-            <span class="navbar-toggler-icon"></span>
+
+        <button class="navbar-toggler border-0 text-white" type="button" data-bs-toggle="collapse" data-bs-target="#navbarMain">
+            <i class="bi bi-list fs-2"></i>
         </button>
-        <div class="collapse navbar-collapse" id="navbarNav">
-            <ul class="navbar-nav ms-auto">
+
+        <div class="collapse navbar-collapse" id="navbarMain">
+            <ul class="navbar-nav me-auto ps-xl-3 gap-1">
                 <li class="nav-item">
-                    <a class="nav-link fw-bold {% if request.path == '/threat_dashboard' %}active{% endif %}" href="/threat_dashboard" style="color:#4fc3f7 !important;">
-                        <i class="bi bi-shield-shaded me-1"></i>Threat SOC
+                    <a class="nav-link {% if request.path == '/threat_dashboard' %}active{% endif %}" href="/threat_dashboard">
+                        <i class="bi bi-radar"></i> SOC Threat Triage
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if request.path == '/multi_camera' %}active{% endif %}" href="/multi_camera">
+                        <i class="bi bi-grid-3x3-gap-fill"></i> Multi-Camera Wall
                     </a>
                 </li>
                 <li class="nav-item">
                     <a class="nav-link {% if request.path == '/' %}active{% endif %}" href="/">
-                        <i class="bi bi-house me-1"></i>Dashboard
+                        <i class="bi bi-cpu"></i> System Hub
                     </a>
                 </li>
                 <li class="nav-item">
                     <a class="nav-link {% if request.path == '/live' %}active{% endif %}" href="/live">
-                        <i class="bi bi-camera-video me-1"></i>Live Camera
+                        <i class="bi bi-camera-video"></i> Live Face Cam
                     </a>
                 </li>
                 <li class="nav-item">
                     <a class="nav-link {% if request.path == '/phone_camera' %}active{% endif %}" href="/phone_camera">
-                        <i class="bi bi-phone me-1"></i>Phone Camera
+                        <i class="bi bi-phone"></i> Mobile Streamer
                     </a>
                 </li>
                 <li class="nav-item">
                     <a class="nav-link {% if request.path == '/upload_image' %}active{% endif %}" href="/upload_image">
-                        <i class="bi bi-image me-1"></i>Upload Image
+                        <i class="bi bi-image"></i> Image Triage
                     </a>
                 </li>
                 <li class="nav-item">
                     <a class="nav-link {% if request.path == '/upload_video' %}active{% endif %}" href="/upload_video">
-                        <i class="bi bi-film me-1"></i>Upload Video
+                        <i class="bi bi-film"></i> Video Scanner
                     </a>
                 </li>
                 <li class="nav-item">
                     <a class="nav-link {% if request.path == '/alerts' %}active{% endif %}" href="/alerts">
-                        <i class="bi bi-exclamation-triangle me-1"></i>Alerts
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link {% if request.path == '/add_person' %}active{% endif %}" href="/add_person">
-                        <i class="bi bi-person-plus me-1"></i>Add Person
+                        <i class="bi bi-shield-exclamation"></i> Audit Trail
                     </a>
                 </li>
             </ul>
+
+            <!-- RBAC Role Switcher & Live Pulse -->
+            <div class="d-flex align-items-center gap-2 mt-2 mt-xl-0">
+                <div class="dropdown">
+                    <button class="btn btn-sm btn-glass dropdown-toggle py-1 px-3 d-flex align-items-center gap-2" type="button" data-bs-toggle="dropdown">
+                        <i class="bi bi-person-badge text-info"></i>
+                        <span style="font-size:0.85rem;">Role: <strong style="color:var(--accent-cyan);">{{ current_role }}</strong></span>
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-dark dropdown-menu-end shadow-lg" style="background:#0e131f; border:1px solid var(--border-glass);">
+                        <li>
+                            <a class="dropdown-item py-2" href="javascript:switchUserRole('Admin')">
+                                <i class="bi bi-shield-lock-fill text-warning me-2"></i>Admin (Full Control)
+                            </a>
+                        </li>
+                        <li>
+                            <a class="dropdown-item py-2" href="javascript:switchUserRole('Operator')">
+                                <i class="bi bi-person-check-fill text-info me-2"></i>Security Operator (Triage)
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </div>
         </div>
     </div>
 </nav>
 
-<div class="container-fluid py-4">
+<!-- Main Container -->
+<main class="container-fluid px-3 px-md-4 py-4 flex-grow-1">
     {% block content %}{% endblock %}
-</div>
+</main>
 
+<!-- Footer -->
 <footer class="text-center">
-    <div class="container">
-        <small>Vision Security & Surveillance System &bull; Flask, OpenCV, YOLOv8</small>
+    <div class="container d-flex flex-wrap justify-content-between align-items-center gap-2">
+        <span>AegisAI Video Threat Recognition Platform &bull; Real-Time Edge Analytics</span>
+        <div class="d-flex gap-3 text-muted">
+            <span><i class="bi bi-hdd-network me-1"></i>Endpoint: {{ local_ip }}:5000</span>
+            <span><i class="bi bi-shield-check text-success me-1"></i>Active</span>
+        </div>
     </div>
 </footer>
 
+<!-- Core Scripts -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+function switchUserRole(targetRole) {
+    fetch('/api/auth/switch_role', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({role: targetRole})
+    })
+    .then(r => r.json())
+    .then(() => location.reload());
+}
+</script>
 {% block extra_js %}{% endblock %}
 </body>
 </html>
