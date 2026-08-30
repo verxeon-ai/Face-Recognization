@@ -193,8 +193,8 @@
 
 {% block extra_js %}
 <script>
-    const LOCAL_IP = "{{ local_ip }}";
-    const MOBILE_URL = `http://${LOCAL_IP}:5000/mobile_cam`;
+    // Dynamically use origin so it works flawlessly on localhost, Local IP, and Public HTTPS tunnels (ngrok/Cloudflare)
+    const MOBILE_URL = `${window.location.origin}/mobile_cam`;
 
     window.addEventListener('DOMContentLoaded', () => {
         document.getElementById('mobileUrlText').textContent = MOBILE_URL;
@@ -206,6 +206,9 @@
             colorLight: "#ffffff",
             correctLevel: QRCode.CorrectLevel.M
         });
+        
+        // Auto-connect phone feed
+        startFeed();
     });
 
     function startFeed() {
