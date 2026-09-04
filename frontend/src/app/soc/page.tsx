@@ -26,7 +26,7 @@ import type { Incident, ThreatStatus } from "@/types";
 export default function SocPage() {
   const [status, setStatus] = useState<ThreatStatus | null>(null);
   const [incidents, setIncidents] = useState<Incident[]>([]);
-  const [focused, setFocused] = useState("restricted");
+  const [focused, setFocused] = useState<string | null>(null);
   const [sirenOn, setSirenOn] = useState(true);
   const [rulesOpen, setRulesOpen] = useState(false);
   const [evidence, setEvidence] = useState<Incident | null>(null);
@@ -142,7 +142,7 @@ export default function SocPage() {
               m.active
                 ? "border-aegis-red bg-aegis-red/15 text-red-200 shadow-[0_0_18px_rgba(239,68,68,0.25)]"
                 : focused === m.id
-                  ? "border-aegis-red/70 bg-aegis-red/10 text-red-200"
+                  ? "border-aegis-border-strong bg-aegis-elevated text-aegis-text"
                   : "border-aegis-border bg-aegis-panel text-aegis-secondary hover:text-aegis-text"
             )}
           >

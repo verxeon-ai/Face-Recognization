@@ -91,7 +91,7 @@ class V1ThreatDetectionEngine:
         default_rules = {
             "weapon_detection_enabled": True,
             "altercation_enabled": True,
-            "restricted_zone_enabled": True,
+            "restricted_zone_enabled": False,
             "person_down_enabled": True,
             "loitering_enabled": True,
             "crowd_anomaly_enabled": True,
@@ -347,8 +347,10 @@ class V1ThreatDetectionEngine:
             cv2.fillPoly(overlay, [poly_pts], (0, 0, 180))  # Red fill
             cv2.addWeighted(overlay, 0.20, annotated, 0.80, 0, annotated)
             cv2.polylines(annotated, [poly_pts], True, (0, 0, 255), 2, cv2.LINE_AA)
-            cv2.putText(annotated, "RESTRICTED ZONE (KEEP OUT)", (poly_pts[0][0], max(20, poly_pts[0][1] - 8)),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
+            label = "RESTRICTED ZONE"
+            lx, ly = int(poly_pts[0][0]), max(40, int(poly_pts[0][1]) - 8)
+            cv2.putText(annotated, label, (lx, ly),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 0, 255), 1)
 
         # ── 4. THREAT 1: Visible Weapon / Handheld Object ── #
         if self.rules.get("weapon_detection_enabled", True) and detected_weapons:
@@ -381,8 +383,8 @@ class V1ThreatDetectionEngine:
                     "details": f"Aggressive motion pattern detected between persons (Energy: {motion_energy:.1f})"
                 })
                 self._create_incident_package("Physical Altercation", conf, frame, "Fight / aggressive altercation pattern")
-                cv2.putText(annotated, "ALERT: PHYSICAL ALTERCATION DETECTED!", (w // 4, 60),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.75, (0, 0, 255), 2)
+                # Mark on persons only — avoid extra full-width banner that collides with HUD
+                cv2.line(annotated, (p1[0], p1[1]), (p2[0], p2[1]), (0, 0, 255), 2)
 
         # ── 6. PERSON-BY-PERSON ANALYTICS (Zone, Fall, Loitering) ── #
         current_frame_track_ids = set()
@@ -473,20 +475,37 @@ class V1ThreatDetectionEngine:
                     "details": f"Sudden crowd formation / rapid movement ({crowd_count} persons, Motion Energy: {motion_energy:.1f})"
                 })
                 self._create_incident_package("Abnormal Crowd Movement", conf, frame, f"Crowd: {crowd_count} people")
-                cv2.putText(annotated, "ALERT: ABNORMAL CROWD MOVEMENT / SURGE", (20, 90),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.65, (0, 140, 255), 2)
+                # Crowd alert is already in the top HUD — skip extra mid-frame banner
         self.last_crowd_count = crowd_count
 
-        # ── 8. Status HUD Banner (Top) ── #
-        status_bg_color = (0, 180, 50) if not threats_detected else (0, 0, 200)
-        cv2.rectangle(annotated, (0, 0), (w, 35), (15, 17, 23), -1)
-        cv2.line(annotated, (0, 35), (w, 35), (50, 50, 80), 1)
+        # ── 8. Compact status HUD (single clean banner — avoids label collisions) ── #
+        cv2.rectangle(annotated, (0, 0), (w, 28), (12, 14, 18), -1)
+        cv2.line(annotated, (0, 28), (w, 28), (40, 42, 48), 1)
 
-        threat_status_text = "STATUS: NORMAL (ALL CLEAR)" if not threats_detected else f"THREAT DETECTED: {threats_detected[0]['type'].upper()}"
-        cv2.putText(annotated, f"AI SAFETY LAYER | {self.rules.get('camera_name', 'Camera 27')}", (12, 22),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (160, 200, 255), 1)
-        cv2.putText(annotated, threat_status_text, (max(10, w - 390), 22),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.55, status_bg_color, 2)
+        if threats_detected:
+            # Deduplicate threat types for a short readable label
+            seen = []
+            for t in threats_detected:
+                if t["type"] not in seen:
+                    seen.append(t["type"])
+            threat_label = " · ".join(seen[:2])
+            if len(seen) > 2:
+                threat_label += f" +{len(seen) - 2}"
+            banner = f"THREAT: {threat_label.upper()}"
+            color = (40, 40, 220)
+        else:
+            banner = "ALL CLEAR"
+            color = (60, 180, 80)
+
+        cam = self.rules.get("camera_name", "Camera 27")
+        if len(cam) > 28:
+            cam = cam[:25] + "..."
+        cv2.putText(annotated, cam, (10, 19),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.45, (170, 175, 185), 1)
+        # Right-aligned threat status
+        (tw, _), _ = cv2.getTextSize(banner, cv2.FONT_HERSHEY_SIMPLEX, 0.45, 1)
+        cv2.putText(annotated, banner, (max(10, w - tw - 12), 19),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.45, color, 1)
 
         hud_data = {
             "threats_count": len(threats_detected),
