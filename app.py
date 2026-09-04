@@ -16,7 +16,6 @@ Modules:
 
 import os
 import uuid
-import json
 import cv2
 import base64
 import socket
@@ -25,8 +24,8 @@ import time
 import numpy as np
 from pathlib import Path
 from datetime import datetime
-from flask import (Flask, render_template, request, jsonify, Response,
-                   send_from_directory, session)
+from flask import (Flask, request, jsonify, Response,
+                   send_from_directory, session, redirect)
 from werkzeug.utils import secure_filename
 
 from recognition_engine import FaceRecognitionEngine
@@ -37,9 +36,14 @@ from alert_dispatcher import AlertDispatcher
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "vision_security_secret_key_prod_v2")
 app.config["MAX_CONTENT_LENGTH"] = 500 * 1024 * 1024  # 500 MB max upload
-app.config["TEMPLATES_AUTO_RELOAD"] = True
 app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0
-app.jinja_env.auto_reload = True
+NEXT_UI_ORIGIN = os.environ.get("NEXT_UI_ORIGIN", "http://localhost:3000").rstrip("/")
+
+
+def ui_redirect(path: str):
+    """Send browser HTML navigations to the Next.js frontend."""
+    return redirect(f"{NEXT_UI_ORIGIN}{path}")
+
 
 UPLOAD_FOLDER = Path("uploads")
 RESULTS_FOLDER = Path("results")
@@ -193,6 +197,12 @@ def generate_face_stream():
         time.sleep(0.035)
 
 
+def phone_stream_connected(timeout=4.0):
+    """True when a phone has pushed a frame recently."""
+    with phone_frame_lock:
+        return latest_phone_frame is not None and (time.time() - latest_phone_time) <= timeout
+
+
 def generate_phone_frames():
     """Generator function for QR Phone Stream."""
     global latest_phone_frame, latest_phone_time
@@ -202,12 +212,14 @@ def generate_phone_frames():
             frame = latest_phone_frame
             ts = latest_phone_time
 
-        if frame is None or (time.time() - ts > 3.0):
+        if frame is None or (time.time() - ts > 4.0):
             placeholder = np.zeros((480, 640, 3), dtype=np.uint8)
             cv2.putText(placeholder, "Scan QR Code with Phone to Connect",
                         (60, 220), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (160, 150, 254), 2)
             cv2.putText(placeholder, "Waiting for mobile camera...",
                         (140, 270), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (120, 120, 120), 1)
+            cv2.putText(placeholder, "Use HTTPS link from QR (accept cert warning once)",
+                        (35, 320), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (100, 100, 100), 1)
             _, buffer = cv2.imencode(".jpg", placeholder)
             yield (b"--frame\r\nContent-Type: image/jpeg\r\n\r\n"
                    + buffer.tobytes() + b"\r\n")
@@ -218,6 +230,55 @@ def generate_phone_frames():
         yield (b"--frame\r\nContent-Type: image/jpeg\r\n\r\n"
                + buffer.tobytes() + b"\r\n")
         time.sleep(0.04)
+
+
+def ensure_ssl_certs():
+    """Create local self-signed HTTPS certs so phones can use getUserMedia."""
+    cert_dir = Path("certs")
+    cert_file = cert_dir / "cert.pem"
+    key_file = cert_dir / "key.pem"
+    ip_marker = cert_dir / "bound_ip.txt"
+    local_ip = get_local_ip()
+
+    if (
+        cert_file.exists()
+        and key_file.exists()
+        and ip_marker.exists()
+        and ip_marker.read_text().strip() == local_ip
+    ):
+        return str(cert_file), str(key_file)
+
+    cert_dir.mkdir(exist_ok=True)
+    conf = cert_dir / "openssl.cnf"
+    conf.write_text(
+        "[req]\n"
+        "distinguished_name=req_distinguished_name\n"
+        "x509_extensions=v3_req\n"
+        "prompt=no\n"
+        "[req_distinguished_name]\n"
+        "CN=AegisAI Local\n"
+        "[v3_req]\n"
+        "keyUsage=critical, digitalSignature, keyEncipherment\n"
+        "extendedKeyUsage=serverAuth\n"
+        "subjectAltName=@alt_names\n"
+        "[alt_names]\n"
+        "DNS.1=localhost\n"
+        "IP.1=127.0.0.1\n"
+        f"IP.2={local_ip}\n"
+    )
+    import subprocess
+    subprocess.run(
+        [
+            "openssl", "req", "-x509", "-newkey", "rsa:2048",
+            "-keyout", str(key_file), "-out", str(cert_file),
+            "-days", "825", "-nodes",
+            "-config", str(conf), "-extensions", "v3_req",
+        ],
+        check=True,
+        capture_output=True,
+    )
+    ip_marker.write_text(local_ip)
+    return str(cert_file), str(key_file)
 
 
 # ═══════════════════════════ ROUTES ════════════════════════════════════ #
@@ -240,25 +301,20 @@ def inject_global_vars():
 
 @app.route("/")
 def index():
-    """Home dashboard."""
-    stats = face_engine.get_stats()
-    return render_template("index.html", stats=stats)
+    """Legacy HTML hub → Next.js System Hub."""
+    return ui_redirect("/")
 
 
 @app.route("/threat_dashboard")
 def threat_dashboard():
-    """V1 AI Video Threat Recognition SOC Dashboard."""
-    incidents = threat_engine.get_incidents()
-    rules = threat_engine.rules
-    return render_template("threat_dashboard.html", incidents=incidents, rules=rules)
+    """Legacy SOC page → Next.js /soc."""
+    return ui_redirect("/soc")
 
 
 @app.route("/multi_camera")
 def multi_camera():
-    """4-Up Multi-Camera Surveillance Wall Dashboard."""
-    cameras = cam_manager.cameras
-    incidents = threat_engine.get_incidents(limit=20)
-    return render_template("multi_camera.html", cameras=cameras, incidents=incidents)
+    """Legacy multi-camera wall → Next.js /multi-camera."""
+    return ui_redirect("/multi-camera")
 
 
 @app.route("/threat_video_feed")
@@ -381,8 +437,8 @@ def serve_clip(filename):
 
 @app.route("/live")
 def live():
-    """Live webcam recognition page."""
-    return render_template("live.html")
+    """Legacy live face cam → Next.js /live-face."""
+    return ui_redirect("/live-face")
 
 
 @app.route("/video_feed")
@@ -396,14 +452,15 @@ def video_feed():
 
 @app.route("/phone_camera")
 def phone_camera():
-    """Two-way QR code phone camera page."""
-    return render_template("phone_camera.html", local_ip=get_local_ip())
+    """Legacy phone streamer → Next.js /mobile-streamer."""
+    return ui_redirect("/mobile-streamer")
 
 
 @app.route("/mobile_cam")
+@app.route("/mobile-cam")
 def mobile_cam():
-    """Mobile browser camera streaming page."""
-    return render_template("mobile_cam.html")
+    """Phone camera page is served by Next.js (via HTTPS proxy on :5443)."""
+    return ui_redirect("/mobile-cam")
 
 
 @app.route("/phone_stream")
@@ -415,32 +472,75 @@ def phone_stream():
     )
 
 
+def _decode_phone_image(data):
+    """Decode base64 image from phone payload (supports 'image' or 'frame' keys)."""
+    if not data:
+        return None
+    payload = data.get("image") or data.get("frame")
+    if not payload:
+        return None
+    img_b64 = payload.split(",")[-1]
+    img_bytes = base64.b64decode(img_b64)
+    np_arr = np.frombuffer(img_bytes, np.uint8)
+    return cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
+
+
 @app.route("/upload_phone_frame", methods=["POST"])
 def upload_phone_frame():
     """Endpoint for mobile browser to push JPEG frame."""
     global latest_phone_frame, latest_phone_time
-    data = request.get_json()
-    if not data or "frame" not in data:
+    frame = _decode_phone_image(request.get_json())
+    if frame is None:
         return jsonify({"error": "No frame data"}), 400
 
-    img_b64 = data["frame"].split(",")[-1]
-    img_bytes = base64.b64decode(img_b64)
-    np_arr = np.frombuffer(img_bytes, np.uint8)
-    frame = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
+    with phone_frame_lock:
+        latest_phone_frame = frame
+        latest_phone_time = time.time()
+    return jsonify({"success": True})
 
-    if frame is not None:
-        with phone_frame_lock:
-            latest_phone_frame = frame
-            latest_phone_time = time.time()
-        return jsonify({"success": True})
-    return jsonify({"error": "Could not decode frame"}), 400
+
+@app.route("/api/stream_phone_frame", methods=["POST"])
+def stream_phone_frame():
+    """Receive phone camera frame, run recognition, update live phone stream."""
+    global latest_phone_frame, latest_phone_time
+    frame = _decode_phone_image(request.get_json())
+    if frame is None:
+        return jsonify({"error": "No image data"}), 400
+
+    annotated, recognized, unknowns = face_engine.process_frame(frame)
+    display = annotated if annotated is not None else frame
+
+    with phone_frame_lock:
+        latest_phone_frame = display
+        latest_phone_time = time.time()
+
+    return jsonify({
+        "success": True,
+        "connected": True,
+        "recognized": recognized,
+        "unknowns": len(unknowns),
+    })
+
+
+@app.route("/api/phone_status")
+def phone_status():
+    """Laptop UI polls this to show Camera Connected / Waiting."""
+    connected = phone_stream_connected()
+    return jsonify({
+        "connected": connected,
+        "status": "connected" if connected else "waiting",
+        "last_frame_age": (
+            round(time.time() - latest_phone_time, 2)
+            if latest_phone_time else None
+        ),
+    })
 
 
 # ───────────────────── Uploads (Image & Video) ───────────────────────── #
 
 @app.route("/upload_image", methods=["GET"])
 def upload_image_page():
-    return render_template("upload_image.html")
+    return ui_redirect("/image-triage")
 
 
 @app.route("/upload_image", methods=["POST"])
@@ -485,7 +585,7 @@ def upload_image():
 
 @app.route("/upload_video", methods=["GET"])
 def upload_video_page():
-    return render_template("upload_video.html")
+    return ui_redirect("/video-scanner")
 
 
 video_progress = {}
@@ -542,8 +642,7 @@ def serve_result(filename):
 
 @app.route("/alerts")
 def alerts_page():
-    recent_alerts = face_engine.get_alerts(limit=50)
-    return render_template("alerts.html", alerts=recent_alerts)
+    return ui_redirect("/audit-trail")
 
 
 @app.route("/api/alerts")
@@ -556,15 +655,19 @@ def api_stats():
     return jsonify(face_engine.get_stats())
 
 
+@app.route("/api/local_ip")
+def api_local_ip():
+    return jsonify({"local_ip": get_local_ip(), "phone_https_port": 5443})
+
+
 @app.route("/persons")
 def persons_page():
-    stats = face_engine.get_stats()
-    return render_template("persons.html", stats=stats)
+    return ui_redirect("/persons")
 
 
 @app.route("/add_person", methods=["GET"])
 def add_person_page():
-    return render_template("add_person.html")
+    return ui_redirect("/persons/add")
 
 
 @app.route("/add_person", methods=["POST"])
@@ -612,21 +715,134 @@ def add_person():
 
 
 # ─────────────────────── Run Server ─────────────────────────────────── #
+def start_https_phone_server(port=5443):
+    """
+    HTTPS reverse proxy for phone camera:
+    - Phone APIs/streams → Flask :5001
+    - UI pages/assets → Next.js :3000
+    """
+    from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
+    import ssl
+    import urllib.error
+    import urllib.request
+
+    cert_file, key_file = ensure_ssl_certs()
+    next_origin = os.environ.get("NEXT_UI_ORIGIN", "http://127.0.0.1:3000").rstrip("/")
+    flask_origin = os.environ.get("FLASK_ORIGIN", "http://127.0.0.1:5001").rstrip("/")
+
+    flask_prefixes = (
+        "/api/",
+        "/upload_phone_frame",
+        "/phone_stream",
+        "/threat_video_feed",
+        "/video_feed",
+        "/results/",
+        "/upload_image",
+        "/upload_video",
+        "/add_person",
+        "/video_progress/",
+    )
+
+    class ProxyHandler(BaseHTTPRequestHandler):
+        def log_message(self, fmt, *args):
+            return
+
+        def _target(self):
+            path = self.path.split("?", 1)[0]
+            if any(path.startswith(p) for p in flask_prefixes):
+                return flask_origin
+            return next_origin
+
+        def _proxy(self):
+            target = self._target() + self.path
+            body = None
+            if self.command in ("POST", "PUT", "PATCH"):
+                length = int(self.headers.get("Content-Length", 0))
+                body = self.rfile.read(length) if length else None
+
+            headers = {
+                k: v
+                for k, v in self.headers.items()
+                if k.lower() not in ("host", "content-length", "connection", "accept-encoding")
+            }
+            req = urllib.request.Request(
+                target,
+                data=body,
+                headers=headers,
+                method=self.command,
+            )
+            try:
+                with urllib.request.urlopen(req, timeout=120) as resp:
+                    payload = resp.read()
+                    self.send_response(resp.status)
+                    for key, value in resp.headers.items():
+                        lk = key.lower()
+                        if lk in ("transfer-encoding", "connection", "content-encoding"):
+                            continue
+                        self.send_header(key, value)
+                    self.send_header("Content-Length", str(len(payload)))
+                    self.end_headers()
+                    self.wfile.write(payload)
+            except urllib.error.HTTPError as exc:
+                payload = exc.read()
+                self.send_response(exc.code)
+                self.send_header("Content-Type", exc.headers.get("Content-Type", "text/plain"))
+                self.send_header("Content-Length", str(len(payload)))
+                self.end_headers()
+                self.wfile.write(payload)
+            except Exception as exc:
+                msg = f"Proxy error: {exc}".encode()
+                self.send_response(502)
+                self.send_header("Content-Type", "text/plain")
+                self.send_header("Content-Length", str(len(msg)))
+                self.end_headers()
+                self.wfile.write(msg)
+
+        def do_GET(self):
+            self._proxy()
+
+        def do_POST(self):
+            self._proxy()
+
+        def do_PUT(self):
+            self._proxy()
+
+        def do_DELETE(self):
+            self._proxy()
+
+        def do_OPTIONS(self):
+            self._proxy()
+
+    server = ThreadingHTTPServer(("0.0.0.0", port), ProxyHandler)
+    ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    ctx.load_cert_chain(cert_file, key_file)
+    server.socket = ctx.wrap_socket(server.socket, server_side=True)
+    print(f"[App] HTTPS phone proxy on :{port} → Next {next_origin} / Flask {flask_origin}")
+    server.serve_forever()
+
+
 if __name__ == "__main__":
     local_ip = get_local_ip()
+    https_port = 5443
+    http_port = 5001
+
+    threading.Thread(
+        target=start_https_phone_server,
+        kwargs={"port": https_port},
+        daemon=True,
+    ).start()
+
     print("\n" + "=" * 65)
-    print("  Enterprise Video Threat Recognition & SOC Platform")
-    print(f"  Threat Analytics:   6 Active Modules + 10s Video Clip Recording")
-    print(f"  Alert Dispatcher:   Webhooks, SMTP Email, SMS & Audio Siren")
-    print(f"  Multi-Camera Grid:  http://localhost:5000/multi_camera")
-    print(f"  SOC Threat Portal:  http://localhost:5000/threat_dashboard")
-    print(f"  Main Portal:        http://localhost:5000")
-    print(f"  Network Endpoint:   http://{local_ip}:5000")
+    print("  AegisAI Backend API + Stream Server")
+    print(f"  Flask API/Streams:  http://localhost:{http_port}")
+    print(f"  Next.js UI:         {NEXT_UI_ORIGIN}")
+    print(f"  Phone HTTPS proxy:  https://{local_ip}:{https_port}/mobile-cam")
+    print("  Start UI with:      cd frontend && npm run dev")
     print("=" * 65 + "\n")
 
     app.run(
         host="0.0.0.0",
-        port=5000,
+        port=http_port,
         debug=False,
-        threaded=True
+        threaded=True,
     )

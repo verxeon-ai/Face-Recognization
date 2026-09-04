@@ -36,3 +36,13 @@ desktop.ini
 
 # Logs
 *.log
+
+# Local HTTPS certs (auto-generated)
+certs/
+
+# Frontend
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/tsconfig.tsbuildinfo
+*.tsbuildinfo
