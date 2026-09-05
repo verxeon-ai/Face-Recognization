@@ -1,28 +1,57 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Database, UserCircle, UserPlus, Users } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Database, Search, UserCircle, UserPlus, Users, X } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { api } from "@/lib/api/client";
+import { useRole } from "@/hooks/useRole";
 import type { SystemStats } from "@/types";
 
 export default function PersonsPage() {
+  const router = useRouter();
+  const { isAdmin, isOperator, ready } = useRole();
   const [stats, setStats] = useState<SystemStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [query, setQuery] = useState("");
 
   useEffect(() => {
+    if (ready && isOperator) {
+      router.replace("/soc");
+    }
+  }, [ready, isOperator, router]);
+
+  useEffect(() => {
+    if (!isAdmin) return;
     api
       .getStats()
       .then(setStats)
       .catch(() => setStats(null))
       .finally(() => setLoading(false));
-  }, []);
+  }, [isAdmin]);
 
   const persons = stats?.persons ?? [];
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return persons;
+    return persons.filter((name) => {
+      const spaced = name.replaceAll("_", " ").toLowerCase();
+      return spaced.includes(q) || name.toLowerCase().includes(q);
+    });
+  }, [persons, query]);
+
+  if (!ready || isOperator) {
+    return (
+      <div className="py-16 text-center text-sm text-aegis-muted">
+        Identity enrollment is Admin-only. Redirecting…
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -48,11 +77,45 @@ export default function PersonsPage() {
             <Database className="h-4 w-4 text-aegis-green" />
             Registered Personnel Index
           </div>
-          <Badge tone="live" pulse>
-            ● 128D Deep L2 Embeddings Active
+          <Badge
+            tone={stats?.encodings_loaded ? "live" : "neutral"}
+            pulse={!!stats?.encodings_loaded}
+          >
+            {stats?.encodings_loaded
+              ? "● 128D embeddings loaded"
+              : "○ Embeddings not loaded"}
           </Badge>
         </CardHeader>
         <CardBody>
+          {!loading && persons.length > 0 ? (
+            <div className="mb-4">
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-aegis-muted" />
+                <input
+                  className="w-full pl-9 pr-9"
+                  type="search"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Search identities by name…"
+                  aria-label="Search identities"
+                />
+                {query ? (
+                  <button
+                    type="button"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-aegis-muted hover:text-aegis-text"
+                    onClick={() => setQuery("")}
+                    aria-label="Clear search"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                ) : null}
+              </div>
+              <div className="mt-1.5 text-[11px] text-aegis-muted">
+                Showing {filtered.length} of {persons.length}
+              </div>
+            </div>
+          ) : null}
+
           {loading ? (
             <div className="py-12 text-center text-sm text-aegis-muted">
               Loading identities…
@@ -70,21 +133,26 @@ export default function PersonsPage() {
                 </Button>
               </Link>
             </div>
+          ) : filtered.length === 0 ? (
+            <div className="py-12 text-center text-sm text-aegis-muted">
+              No identities match “{query.trim()}”.
+            </div>
           ) : (
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6">
-              {persons.map((name) => (
-                <div
+              {filtered.map((name) => (
+                <Link
                   key={name}
+                  href={`/persons/${encodeURIComponent(name)}`}
                   className="rounded-xl border border-aegis-border bg-aegis-panel px-3 py-4 text-center transition-colors hover:border-aegis-cyan/40"
                 >
                   <UserCircle className="mx-auto h-8 w-8 text-aegis-cyan" />
                   <div className="mt-2 text-xs font-semibold text-aegis-text">
                     {name.replaceAll("_", " ")}
                   </div>
-                  <Badge tone="live" className="mt-2 text-[10px]">
-                    Verified
-                  </Badge>
-                </div>
+                  <div className="mt-1 text-[10px] text-aegis-muted">
+                    View photos
+                  </div>
+                </Link>
               ))}
             </div>
           )}

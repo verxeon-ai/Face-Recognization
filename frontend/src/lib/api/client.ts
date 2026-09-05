@@ -1,6 +1,5 @@
 import type {
   AlertItem,
-  CamerasMap,
   ImageAnalysisResult,
   Incident,
   PhoneFrameResult,
@@ -27,6 +26,17 @@ async function parseJson<T>(res: Response): Promise<T> {
 
 export const api = {
   getStats: () => fetch("/api/stats").then((r) => parseJson<SystemStats>(r)),
+  getPerson: (name: string) =>
+    fetch(`/api/persons/${encodeURIComponent(name)}`, {
+      credentials: "include",
+    }).then((r) =>
+      parseJson<{
+        name: string;
+        display_name: string;
+        image_count: number;
+        images: { filename: string; url: string }[];
+      }>(r)
+    ),
   getAlerts: () => fetch("/api/alerts").then((r) => parseJson<AlertItem[]>(r)),
   getThreatStatus: () =>
     fetch("/api/threat_status").then((r) => parseJson<ThreatStatus>(r)),
@@ -42,32 +52,47 @@ export const api = {
         notes: notes || "Operator verified via SOC console",
       }),
     }).then((r) => parseJson<{ success: boolean; incident?: Incident; error?: string }>(r)),
+  deleteIncidents: (incident_ids: string[], clear_all = false) =>
+    fetch("/api/delete_incidents", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ incident_ids, clear_all }),
+    }).then((r) => parseJson<{ success: boolean; deleted?: number; error?: string }>(r)),
   updateRules: (payload: Partial<ThreatRules>) =>
     fetch("/api/update_rules", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
+      credentials: "include",
     }).then((r) => parseJson<{ success?: boolean; rules?: ThreatRules; error?: string }>(r)),
-  getCameras: () => fetch("/api/cameras").then((r) => parseJson<CamerasMap>(r)),
-  updateCamera: (cam_id: number, name?: string, url?: string) =>
-    fetch("/api/cameras", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ cam_id, name, url }),
-    }).then((r) => parseJson<{ success: boolean; cameras: CamerasMap }>(r)),
+  getRules: () =>
+    fetch("/api/rules", { credentials: "include" }).then((r) =>
+      parseJson<ThreatRules>(r)
+    ),
   dispatchTestAlert: () =>
     fetch("/api/dispatch_test_alert", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ threat_type: "SOC Connectivity Test" }),
-    }).then((r) => parseJson<{ success: boolean }>(r)),
-  switchRole: (role: "Admin" | "Operator") =>
+      credentials: "include",
+    }).then((r) =>
+      parseJson<{ success: boolean; details?: Record<string, unknown> }>(r)
+    ),
+  switchRole: (role: "Admin" | "Operator", password: string) =>
     fetch("/api/auth/switch_role", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ role }),
+      body: JSON.stringify({ role, password }),
       credentials: "include",
     }).then((r) => parseJson<{ success: boolean; current_role: string }>(r)),
+  getRole: () =>
+    fetch("/api/auth/role", { credentials: "include" }).then((r) =>
+      parseJson<{
+        current_role: string;
+        is_admin: boolean;
+        capabilities: Record<string, boolean>;
+      }>(r)
+    ),
   getPhoneStatus: () =>
     fetch("/api/phone_status").then((r) => parseJson<PhoneStatus>(r)),
   streamPhoneFrame: (image: string) =>
@@ -79,14 +104,14 @@ export const api = {
   uploadImage: (file: File) => {
     const fd = new FormData();
     fd.append("image", file);
-    return fetch("/upload_image", { method: "POST", body: fd }).then((r) =>
+    return fetch("/api/upload-image", { method: "POST", body: fd }).then((r) =>
       parseJson<ImageAnalysisResult>(r)
     );
   },
   uploadVideo: (file: File) => {
     const fd = new FormData();
     fd.append("video", file);
-    return fetch("/upload_video", { method: "POST", body: fd }).then((r) =>
+    return fetch("/api/upload-video", { method: "POST", body: fd }).then((r) =>
       parseJson<{ success: boolean; job_id: string }>(r)
     );
   },
@@ -98,7 +123,11 @@ export const api = {
     const fd = new FormData();
     fd.append("name", name);
     images.forEach((img) => fd.append("images", img));
-    return fetch("/add_person", { method: "POST", body: fd }).then((r) =>
+    return fetch("/api/add-person", {
+      method: "POST",
+      body: fd,
+      credentials: "include",
+    }).then((r) =>
       parseJson<{ success: boolean; message: string; name: string; images_saved: number }>(r)
     );
   },

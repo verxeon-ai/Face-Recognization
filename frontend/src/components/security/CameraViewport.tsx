@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 
 export function CameraViewport({
@@ -9,16 +9,19 @@ export function CameraViewport({
   className,
   imgClassName,
   refreshKey,
+  onLiveChange,
 }: {
   src: string;
   alt: string;
   className?: string;
   imgClassName?: string;
   refreshKey?: number | string;
+  onLiveChange?: (live: boolean) => void;
 }) {
   const [failed, setFailed] = useState(false);
-  // Defer cache-busting until after mount to avoid SSR/client hydration mismatch
   const [url, setUrl] = useState<string | null>(null);
+  const onLiveRef = useRef(onLiveChange);
+  onLiveRef.current = onLiveChange;
 
   useEffect(() => {
     const sep = src.includes("?") ? "&" : "?";
@@ -27,21 +30,29 @@ export function CameraViewport({
     }`;
     setUrl(bust);
     setFailed(false);
+    onLiveRef.current?.(false);
   }, [src, refreshKey]);
+
+  const live = !!url && !failed;
 
   return (
     <div className={cn("relative overflow-hidden bg-black", className)}>
       <div className="pointer-events-none absolute inset-0 z-[1] bg-grid-fade opacity-40" />
-      {/* MJPEG streams require raw img — next/image breaks multipart */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={failed || !url ? undefined : url}
         alt={alt}
         className={cn("relative z-[2] h-full w-full object-contain", imgClassName)}
-        onError={() => setFailed(true)}
-        onLoad={() => setFailed(false)}
+        onError={() => {
+          setFailed(true);
+          onLiveRef.current?.(false);
+        }}
+        onLoad={() => {
+          setFailed(false);
+          onLiveRef.current?.(true);
+        }}
       />
-      {!url || failed ? (
+      {!live ? (
         <div className="absolute inset-0 z-[3] flex items-center justify-center text-xs text-aegis-muted">
           Waiting for sensor feed…
         </div>

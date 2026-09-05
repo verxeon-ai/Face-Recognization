@@ -4,11 +4,10 @@ Video Threat Recognition and Security Analytics Engine (V2 Enterprise)
 Automated computer vision threat detection modules:
 1. Visible Weapon: Firearm, knife, and suspicious handheld object detection
 2. Physical Altercation: High-acceleration motion energy and fight pattern analysis
-3. Restricted-Zone Entry: Geofencing polygon perimeter intrusion monitoring
-4. Person Down: Fall event and motionless ground-level posture detection (with Skeletal keypoint analysis)
-5. Loitering: Dwell-time centroid tracking in sensitive zones
-6. Abnormal Crowd Movement: Crowd density surge and rapid dispersal analysis
-7. Facial Recognition: SFace 128D deep feature matching and authorization check
+3. Person Down: Fall event and motionless ground-level posture detection
+4. Loitering: Dwell-time centroid tracking in sensitive zones
+5. Abnormal Crowd Movement: Crowd density surge and rapid dispersal analysis
+6. Facial Recognition: SFace 128D deep feature matching and authorization check
 
 Incident Management & Evidence Recording:
 - Structured Incident Packages (Camera ID, Location, Timestamp, Threat Type, Confidence, Snapshot, 10s Video Clip)
@@ -91,7 +90,6 @@ class V1ThreatDetectionEngine:
         default_rules = {
             "weapon_detection_enabled": True,
             "altercation_enabled": True,
-            "restricted_zone_enabled": False,
             "person_down_enabled": True,
             "loitering_enabled": True,
             "crowd_anomaly_enabled": True,
@@ -99,12 +97,6 @@ class V1ThreatDetectionEngine:
             "crowd_surge_threshold": 4,
             "motion_energy_threshold": 18.0,
             "confidence_threshold": 0.40,
-            "restricted_zone_polygon": [
-                [0.55, 0.20],
-                [0.95, 0.20],
-                [0.95, 0.85],
-                [0.55, 0.85]
-            ],
             "camera_name": "Camera 27 - North Corridor / Main Entrance",
             # Notification Dispatch Settings
             "webhook_url": "",
@@ -129,6 +121,9 @@ class V1ThreatDetectionEngine:
                     for k, v in default_rules.items():
                         if k not in self.rules:
                             self.rules[k] = v
+                    # Restricted zone removed from product
+                    self.rules.pop("restricted_zone_enabled", None)
+                    self.rules.pop("restricted_zone_polygon", None)
             except Exception:
                 self.rules = default_rules
         else:
@@ -204,6 +199,21 @@ class V1ThreatDetectionEngine:
 
         return {"success": False, "error": "Incident ID not found"}
 
+    def delete_incidents(self, incident_ids=None, clear_all=False):
+        """Remove selected incidents from the verification queue, or clear all."""
+        with self.lock:
+            before = len(self.incidents)
+            if clear_all:
+                self.incidents = []
+            elif incident_ids:
+                drop = set(incident_ids)
+                self.incidents = [i for i in self.incidents if i.get("incident_id") not in drop]
+            else:
+                return {"success": False, "error": "No incidents specified", "deleted": 0}
+            self._save_incidents()
+            deleted = before - len(self.incidents)
+        return {"success": True, "deleted": deleted}
+
     def _save_video_clip_async(self, frames_to_save, clip_path):
         """Background worker to compile rolling buffer into 10-second MP4 video."""
         if not frames_to_save or len(frames_to_save) < 5:
@@ -273,12 +283,6 @@ class V1ThreatDetectionEngine:
         self._save_incidents()
         return package
 
-    def is_inside_restricted_zone(self, point, polygon, frame_shape):
-        """Check if a point (x, y) falls inside the defined restricted zone polygon."""
-        h, w = frame_shape[:2]
-        poly_pts = np.array([[int(p[0] * w), int(p[1] * h)] for p in polygon], np.int32)
-        return cv2.pointPolygonTest(poly_pts, (float(point[0]), float(point[1])), False) >= 0
-
     def process_threat_frame(self, frame):
         """
         Execute all 6 V1 Threat Detections in real-time on the live video stream.
@@ -339,20 +343,7 @@ class V1ThreatDetectionEngine:
                         "centroid": centroid
                     })
 
-        # ── 3. Draw Restricted Zone Polygon ── #
-        poly_coords = self.rules.get("restricted_zone_polygon", [])
-        if poly_coords and self.rules.get("restricted_zone_enabled", True):
-            poly_pts = np.array([[int(p[0] * w), int(p[1] * h)] for p in poly_coords], np.int32)
-            overlay = annotated.copy()
-            cv2.fillPoly(overlay, [poly_pts], (0, 0, 180))  # Red fill
-            cv2.addWeighted(overlay, 0.20, annotated, 0.80, 0, annotated)
-            cv2.polylines(annotated, [poly_pts], True, (0, 0, 255), 2, cv2.LINE_AA)
-            label = "RESTRICTED ZONE"
-            lx, ly = int(poly_pts[0][0]), max(40, int(poly_pts[0][1]) - 8)
-            cv2.putText(annotated, label, (lx, ly),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 0, 255), 1)
-
-        # ── 4. THREAT 1: Visible Weapon / Handheld Object ── #
+        # ── 3. THREAT: Visible Weapon / Handheld Object ── #
         if self.rules.get("weapon_detection_enabled", True) and detected_weapons:
             for w_obj in detected_weapons:
                 wx1, wy1, ww, wh = w_obj["box"]
@@ -369,7 +360,7 @@ class V1ThreatDetectionEngine:
                 })
                 self._create_incident_package("Visible Weapon", w_conf, frame, f"Object: {w_obj['name']}")
 
-        # ── 5. THREAT 2: Physical Altercation / Fight Detection ── #
+        # ── 4. THREAT: Physical Altercation / Fight Detection ── #
         if self.rules.get("altercation_enabled", True) and len(detected_persons) >= 2:
             p1 = detected_persons[0]["centroid"]
             p2 = detected_persons[1]["centroid"]
@@ -386,14 +377,13 @@ class V1ThreatDetectionEngine:
                 # Mark on persons only — avoid extra full-width banner that collides with HUD
                 cv2.line(annotated, (p1[0], p1[1]), (p2[0], p2[1]), (0, 0, 255), 2)
 
-        # ── 6. PERSON-BY-PERSON ANALYTICS (Zone, Fall, Loitering) ── #
+        # ── 5. PERSON-BY-PERSON ANALYTICS (Fall, Loitering) ── #
         current_frame_track_ids = set()
 
         for idx, p in enumerate(detected_persons):
             x, y, bw, bh = p["box"]
             cx, cy = p["centroid"]
             aspect_ratio = p["aspect_ratio"]
-            in_restricted = self.is_inside_restricted_zone((cx, cy), poly_coords, (h, w))
 
             matched_id = None
             for tid, tdata in self.trackers.items():
@@ -409,12 +399,10 @@ class V1ThreatDetectionEngine:
                     "start_time": current_time,
                     "centroid": (cx, cy),
                     "box": (x, y, bw, bh),
-                    "in_restricted": in_restricted
                 }
             else:
                 self.trackers[matched_id]["centroid"] = (cx, cy)
                 self.trackers[matched_id]["box"] = (x, y, bw, bh)
-                self.trackers[matched_id]["in_restricted"] = in_restricted
 
             current_frame_track_ids.add(matched_id)
             dwell_time = current_time - self.trackers[matched_id]["start_time"]
@@ -422,18 +410,7 @@ class V1ThreatDetectionEngine:
             box_color = (0, 220, 50)  # Default Green
             status_text = f"Person #{matched_id}"
 
-            # ── THREAT 3: Restricted-Zone Entry ── #
-            if in_restricted and self.rules.get("restricted_zone_enabled", True):
-                box_color = (0, 0, 255)  # Red
-                status_text = f"RESTRICTED ZONE INTRUSION! #{matched_id}"
-                threats_detected.append({
-                    "type": "Restricted-Zone Entry",
-                    "confidence": 94,
-                    "details": f"Unauthorized person entered restricted zone (Dwell: {dwell_time:.1f}s)"
-                })
-                self._create_incident_package("Restricted-Zone Entry", 94, frame, f"Intruder #{matched_id} in zone")
-
-            # ── THREAT 4: Person Down / Fall Detection ── #
+            # ── THREAT: Person Down / Fall Detection ── #
             if aspect_ratio >= 1.30 and (y + bh) > (h * 0.40) and self.rules.get("person_down_enabled", True):
                 box_color = (0, 0, 255)
                 status_text = f"PERSON DOWN / FALL DETECTED! #{matched_id}"
@@ -445,7 +422,7 @@ class V1ThreatDetectionEngine:
                 })
                 self._create_incident_package("Person Down", conf, frame, f"Fall detected (Aspect ratio: {aspect_ratio:.2f})")
 
-            # ── THREAT 5: Loitering Detection ── #
+            # ── THREAT: Loitering Detection ── #
             loiter_limit = self.rules.get("loitering_threshold_seconds", 8.0)
             if dwell_time >= loiter_limit and self.rules.get("loitering_enabled", True):
                 box_color = (0, 165, 255)  # Orange
@@ -463,7 +440,7 @@ class V1ThreatDetectionEngine:
 
         self.trackers = {tid: tdata for tid, tdata in self.trackers.items() if tid in current_frame_track_ids}
 
-        # ── 7. THREAT 6: Abnormal Crowd Movement / Surge ── #
+        # ── 6. THREAT: Abnormal Crowd Movement / Surge ── #
         crowd_count = len(detected_persons)
         surge_limit = self.rules.get("crowd_surge_threshold", 4)
         if self.rules.get("crowd_anomaly_enabled", True):
@@ -478,12 +455,11 @@ class V1ThreatDetectionEngine:
                 # Crowd alert is already in the top HUD — skip extra mid-frame banner
         self.last_crowd_count = crowd_count
 
-        # ── 8. Compact status HUD (single clean banner — avoids label collisions) ── #
+        # ── 8. Compact status HUD (threat status only — camera name lives in the UI chrome) ── #
         cv2.rectangle(annotated, (0, 0), (w, 28), (12, 14, 18), -1)
         cv2.line(annotated, (0, 28), (w, 28), (40, 42, 48), 1)
 
         if threats_detected:
-            # Deduplicate threat types for a short readable label
             seen = []
             for t in threats_detected:
                 if t["type"] not in seen:
@@ -497,15 +473,16 @@ class V1ThreatDetectionEngine:
             banner = "ALL CLEAR"
             color = (60, 180, 80)
 
-        cam = self.rules.get("camera_name", "Camera 27")
-        if len(cam) > 28:
-            cam = cam[:25] + "..."
-        cv2.putText(annotated, cam, (10, 19),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.45, (170, 175, 185), 1)
-        # Right-aligned threat status
-        (tw, _), _ = cv2.getTextSize(banner, cv2.FONT_HERSHEY_SIMPLEX, 0.45, 1)
-        cv2.putText(annotated, banner, (max(10, w - tw - 12), 19),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.45, color, 1)
+        (tw, _), _ = cv2.getTextSize(banner, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
+        cv2.putText(
+            annotated,
+            banner,
+            (max(10, (w - tw) // 2), 19),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.5,
+            color,
+            1,
+        )
 
         hud_data = {
             "threats_count": len(threats_detected),

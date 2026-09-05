@@ -39,7 +39,9 @@ export default function ImageTriagePage() {
       const res = await api.uploadImage(file);
       setResult(res);
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Image analysis failed");
+      const msg = err instanceof Error ? err.message : "Image analysis failed";
+      setResult(null);
+      alert(msg);
     } finally {
       setLoading(false);
     }

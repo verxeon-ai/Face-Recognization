@@ -6,7 +6,6 @@ import {
   FlipHorizontal2,
   Pause,
   Play,
-  Shield,
 } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -155,13 +154,21 @@ export default function MobileCamPage() {
   return (
     <div className="min-h-screen bg-[#07090e] px-3 py-4 text-center text-white">
       <div className="mb-1 flex items-center justify-center gap-2">
-        <Shield className="h-6 w-6 text-aegis-cyan" />
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/aegis-mark.svg" alt="" width={28} height={28} className="h-7 w-7" />
         <div className="text-lg font-bold tracking-tight text-aegis-cyan">
           AegisAI Mobile Sensor
         </div>
       </div>
       <p className="mb-4 text-xs text-aegis-secondary">
         Live wireless camera for your laptop dashboard
+      </p>
+      <p className="mx-auto mb-4 max-w-md text-[11px] text-aegis-muted">
+        Open this page from your phone via the QR on{" "}
+        <a href="/mobile-streamer" className="text-aegis-cyan underline">
+          Mobile Streamer
+        </a>
+        . Desktop browsers can test camera access, but the intended flow is phone → laptop.
       </p>
 
       {phase === "permission" || phase === "error" ? (

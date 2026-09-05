@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Bell, RefreshCw, ShieldAlert, ShieldCheck, UserX } from "lucide-react";
+import { Bell, RefreshCw, ShieldCheck, UserX } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -32,13 +32,11 @@ export default function AuditTrailPage() {
   return (
     <div>
       <PageHeader
-        title="Real-Time Security Audit Trail"
-        description="Immutable event history logged automatically when unauthorized individuals or visual threats occur."
+        title="Security Alert Log"
+        description="Face-recognition and threat alerts recorded by the backend (latest first)."
         actions={
           <>
-            <Badge tone="alert" pulse>
-              {alerts.length} Total Incidents
-            </Badge>
+            <Badge tone="neutral">{alerts.length} alerts</Badge>
             <Button size="sm" onClick={() => load()} disabled={loading}>
               <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
               Refresh
@@ -51,26 +49,25 @@ export default function AuditTrailPage() {
         <CardHeader>
           <div className="flex items-center gap-2 text-sm font-semibold">
             <Bell className="h-4 w-4 text-aegis-amber" />
-            Logged Security Exceptions
+            Logged Alerts
           </div>
           <span className="text-[11px] text-aegis-muted">
-            Sorted chronologically (latest first)
+            From data/alerts_log.json
           </span>
         </CardHeader>
         <CardBody>
           {loading && alerts.length === 0 ? (
             <div className="py-12 text-center text-sm text-aegis-muted">
-              Loading audit trail…
+              Loading alert log…
             </div>
           ) : alerts.length === 0 ? (
             <div className="py-16 text-center text-aegis-muted">
               <ShieldCheck className="mx-auto h-10 w-10 text-aegis-green opacity-75" />
               <h3 className="mt-3 text-base font-semibold text-aegis-text">
-                All Clear · No Security Alerts
+                All Clear · No Alerts Logged
               </h3>
               <p className="mt-1 text-sm">
-                When an unauthorized person or safety threat is detected, full
-                audit telemetry is stored here.
+                Unknown faces and safety threats will appear here when detected.
               </p>
             </div>
           ) : (
@@ -96,9 +93,6 @@ export default function AuditTrailPage() {
                       </div>
                     </div>
                   </div>
-                  <Badge tone="alert">
-                    <ShieldAlert className="h-3 w-3" /> HIGH PRIORITY
-                  </Badge>
                 </div>
               ))}
             </div>

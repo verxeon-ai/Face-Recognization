@@ -246,12 +246,23 @@ export default function VideoScannerPage() {
                   </div>
 
                   {report.output_filename ? (
-                    <a
-                      href={`/results/${report.output_filename}`}
-                      className="inline-flex w-full items-center justify-center gap-2 rounded-md border border-aegis-text bg-aegis-text px-4 py-2.5 text-sm font-medium text-aegis-bg hover:bg-white"
-                    >
-                      <Download className="h-4 w-4" /> Download Annotated Video
-                    </a>
+                    <div className="space-y-3">
+                      <video
+                        key={report.output_filename}
+                        controls
+                        playsInline
+                        preload="metadata"
+                        className="w-full rounded-lg border border-aegis-border bg-black"
+                        src={`/results/${report.output_filename}`}
+                      />
+                      <a
+                        href={`/results/${report.output_filename}`}
+                        download={report.output_filename}
+                        className="inline-flex w-full items-center justify-center gap-2 rounded-md border border-aegis-text bg-aegis-text px-4 py-2.5 text-sm font-medium text-aegis-bg hover:bg-white"
+                      >
+                        <Download className="h-4 w-4" /> Download Annotated Video
+                      </a>
+                    </div>
                   ) : null}
                 </div>
               )}

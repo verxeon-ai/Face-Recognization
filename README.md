@@ -13,7 +13,6 @@ Real-time facial recognition and video threat detection platform.
 - Phone camera streaming (HTTPS QR handshake)
 - Image / video upload analysis
 - SOC threat triage (6 detection modules + human verification)
-- Multi-camera wall
 - Identity enrollment with background retraining
 
 ---
@@ -48,6 +47,15 @@ python train_encodings.py         # first time only
 python app.py                     # API :5001, phone HTTPS :5443
 ```
 
+Role passwords (set in project-root `.env`, see `.env.example`):
+
+| Role | Default password |
+|------|------------------|
+| Admin | `admin123` |
+| Security Operator | `operator123` |
+
+Switch roles from the navbar **Role** menu — each switch asks for that role’s password.
+
 ### Frontend
 
 ```bash
@@ -66,9 +74,8 @@ Open: [http://localhost:3000](http://localhost:3000)
 
 | Route | Page |
 |-------|------|
-| `/` | System Hub |
+| `/` | Redirects to SOC |
 | `/soc` | SOC Threat Triage |
-| `/multi-camera` | Multi-Camera Wall |
 | `/live-face` | Live Face Cam |
 | `/mobile-streamer` | Phone QR streamer |
 | `/mobile-cam` | Phone capture (HTTPS) |

@@ -16,6 +16,10 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "AegisAI — Video Threat Defense",
   description: "Enterprise video threat recognition and SOC platform",
+  icons: {
+    icon: [{ url: "/aegis-mark.svg", type: "image/svg+xml" }, { url: "/icon.png" }],
+    apple: [{ url: "/aegis-mark.png" }],
+  },
 };
 
 export default function RootLayout({

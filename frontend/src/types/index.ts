@@ -52,14 +52,6 @@ export interface Incident {
   verifier_notes?: string;
 }
 
-export interface CameraInfo {
-  name: string;
-  source_type: string;
-  active?: boolean;
-}
-
-export type CamerasMap = Record<string, CameraInfo>;
-
 export interface PhoneStatus {
   connected: boolean;
   status: "connected" | "waiting" | string;

@@ -10,12 +10,45 @@ Face Recognition Engine - Powered by OpenCV SFace Deep Neural Network
 import os
 import time
 import pickle
+import subprocess
+import tempfile
 import numpy as np
 import cv2
 import json
 from pathlib import Path
 from datetime import datetime
 from threading import Lock
+
+
+def _transcode_to_browser_mp4(src_path, dst_path):
+    """Re-encode OpenCV mp4v output to H.264 so Chrome/Safari can play it."""
+    try:
+        import imageio_ffmpeg
+    except ImportError as exc:
+        raise RuntimeError("imageio-ffmpeg is required for browser-playable video") from exc
+
+    ffmpeg = imageio_ffmpeg.get_ffmpeg_exe()
+    cmd = [
+        ffmpeg,
+        "-y",
+        "-i",
+        str(src_path),
+        "-c:v",
+        "libx264",
+        "-preset",
+        "veryfast",
+        "-crf",
+        "23",
+        "-pix_fmt",
+        "yuv420p",
+        "-movflags",
+        "+faststart",
+        "-an",
+        str(dst_path),
+    ]
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0 or not Path(dst_path).is_file() or Path(dst_path).stat().st_size == 0:
+        raise RuntimeError(result.stderr[-800:] if result.stderr else "ffmpeg transcode failed")
 
 ENCODINGS_FILE = Path("data/face_encodings.pkl")
 METADATA_FILE = Path("data/metadata.json")
@@ -221,14 +254,25 @@ class FaceRecognitionEngine:
         """Process an uploaded photo file."""
         frame = cv2.imread(str(image_path))
         if frame is None:
+            # Fallback for odd encodings (some phone JPEGs)
+            try:
+                data = np.fromfile(str(image_path), dtype=np.uint8)
+                frame = cv2.imdecode(data, cv2.IMREAD_COLOR)
+            except Exception:
+                frame = None
+        if frame is None:
             return None, {"error": "Could not read image"}
 
-        annotated, recognized, unknowns = self.process_frame(frame)
+        with self.lock:
+            annotated, recognized, unknowns = self.process_frame(frame)
+        if annotated is None:
+            return None, {"error": "Face engine returned no output"}
+
         results = {
             "total_faces": len(recognized) + len(unknowns),
             "recognized_persons": recognized,
             "unknown_persons": len(unknowns),
-            "all_in_dataset": len(unknowns) == 0,
+            "all_in_dataset": len(unknowns) == 0 and (len(recognized) + len(unknowns)) > 0,
             "alert": len(unknowns) > 0
         }
         return annotated, results
@@ -242,37 +286,76 @@ class FaceRecognitionEngine:
         fps = max(1, int(cap.get(cv2.CAP_PROP_FPS)) or 25)
         width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        # H.264 / yuv420p needs even dimensions
+        width -= width % 2
+        height -= height % 2
+        if width < 2 or height < 2:
+            cap.release()
+            return {"error": "Video frame size is too small"}
+
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        output_path = Path(output_path)
+
+        # OpenCV's mp4v is not playable in Chrome/Safari — write temp then transcode.
+        tmp_fd, tmp_name = tempfile.mkstemp(suffix=".mp4", prefix="aegis_raw_")
+        os.close(tmp_fd)
+        tmp_path = Path(tmp_name)
 
         fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-        out = cv2.VideoWriter(str(output_path), fourcc, fps, (width, height))
+        out = cv2.VideoWriter(str(tmp_path), fourcc, fps, (width, height))
+        if not out.isOpened():
+            cap.release()
+            tmp_path.unlink(missing_ok=True)
+            return {"error": "Could not create annotated video writer"}
 
         all_recognized = set()
         all_unknown_frames = 0
         frame_count = 0
         process_every = max(1, fps // 2)
 
-        while True:
-            ret, frame = cap.read()
-            if not ret:
-                break
-            frame_count += 1
+        try:
+            while True:
+                ret, frame = cap.read()
+                if not ret:
+                    break
+                frame_count += 1
 
-            if frame_count % process_every == 0:
-                annotated, recognized, unknowns = self.process_frame(frame.copy())
-                for r in recognized:
-                    all_recognized.add(r["name"])
-                if unknowns:
-                    all_unknown_frames += 1
-                out.write(annotated)
-            else:
-                out.write(frame)
+                if frame.shape[1] != width or frame.shape[0] != height:
+                    frame = cv2.resize(frame, (width, height))
 
-            if progress_callback and total_frames > 0 and frame_count % 30 == 0:
-                progress_callback(int((frame_count / total_frames) * 100))
+                if frame_count % process_every == 0:
+                    annotated, recognized, unknowns = self.process_frame(frame.copy())
+                    for r in recognized:
+                        all_recognized.add(r["name"])
+                    if unknowns:
+                        all_unknown_frames += 1
+                    if annotated.shape[1] != width or annotated.shape[0] != height:
+                        annotated = cv2.resize(annotated, (width, height))
+                    out.write(annotated)
+                else:
+                    out.write(frame)
 
-        cap.release()
-        out.release()
+                if progress_callback and total_frames > 0 and frame_count % 30 == 0:
+                    progress_callback(int((frame_count / total_frames) * 90))
+        finally:
+            cap.release()
+            out.release()
+
+        try:
+            _transcode_to_browser_mp4(tmp_path, output_path)
+        except Exception as exc:
+            # Fall back to raw OpenCV file (plays in VLC, not most browsers)
+            print(f"[Engine] H.264 transcode failed, keeping mp4v: {exc}")
+            try:
+                if output_path.exists():
+                    output_path.unlink()
+                tmp_path.replace(output_path)
+            except Exception:
+                pass
+        else:
+            tmp_path.unlink(missing_ok=True)
+            if progress_callback:
+                progress_callback(100)
 
         return {
             "total_frames": frame_count,

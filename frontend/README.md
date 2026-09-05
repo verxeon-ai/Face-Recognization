@@ -45,9 +45,8 @@ npm run start
 
 | UI route | Purpose |
 |----------|---------|
-| `/` | System Hub |
+| `/` | Redirects to SOC |
 | `/soc` | SOC Threat Triage |
-| `/multi-camera` | Multi-Camera Wall |
 | `/live-face` | Live Face Cam |
 | `/mobile-streamer` | Laptop phone streamer + QR |
 | `/mobile-cam` | Phone capture page |

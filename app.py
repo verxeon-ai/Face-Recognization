@@ -16,6 +16,7 @@ Modules:
 
 import os
 import uuid
+import hmac
 import cv2
 import base64
 import socket
@@ -28,6 +29,12 @@ from flask import (Flask, request, jsonify, Response,
                    send_from_directory, session, redirect)
 from werkzeug.utils import secure_filename
 
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
 from recognition_engine import FaceRecognitionEngine
 from threat_engine import V1ThreatDetectionEngine
 from alert_dispatcher import AlertDispatcher
@@ -38,6 +45,11 @@ app.secret_key = os.environ.get("SECRET_KEY", "vision_security_secret_key_prod_v
 app.config["MAX_CONTENT_LENGTH"] = 500 * 1024 * 1024  # 500 MB max upload
 app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0
 NEXT_UI_ORIGIN = os.environ.get("NEXT_UI_ORIGIN", "http://localhost:3000").rstrip("/")
+
+# Role unlock passwords (override via .env)
+ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "admin123")
+OPERATOR_PASSWORD = os.environ.get("OPERATOR_PASSWORD", "operator123")
+DEFAULT_SESSION_ROLE = os.environ.get("DEFAULT_SESSION_ROLE", "Security Operator")
 
 
 def ui_redirect(path: str):
@@ -285,24 +297,28 @@ def ensure_ssl_certs():
 
 @app.before_request
 def check_rbac():
-    """Default role to Security Operator if not set."""
+    """Default new sessions to Security Operator (lower privilege)."""
     if "role" not in session:
-        session["role"] = "Admin"  # Default full access
+        session["role"] = (
+            "Admin"
+            if DEFAULT_SESSION_ROLE.lower() == "admin"
+            else "Security Operator"
+        )
 
 
 @app.context_processor
 def inject_global_vars():
     """Inject role and system info into all templates."""
     return {
-        "current_role": session.get("role", "Admin"),
+        "current_role": session.get("role", "Security Operator"),
         "local_ip": get_local_ip()
     }
 
 
 @app.route("/")
 def index():
-    """Legacy HTML hub → Next.js System Hub."""
-    return ui_redirect("/")
+    """Legacy root → Next.js SOC triage."""
+    return ui_redirect("/soc")
 
 
 @app.route("/threat_dashboard")
@@ -313,8 +329,8 @@ def threat_dashboard():
 
 @app.route("/multi_camera")
 def multi_camera():
-    """Legacy multi-camera wall → Next.js /multi-camera."""
-    return ui_redirect("/multi-camera")
+    """Legacy multi-camera wall removed — send users to SOC."""
+    return ui_redirect("/soc")
 
 
 @app.route("/threat_video_feed")
@@ -355,21 +371,43 @@ def api_verify_incident():
     return jsonify(result)
 
 
+@app.route("/api/delete_incidents", methods=["POST"])
+def api_delete_incidents():
+    """Delete selected queue items, or clear the entire verification queue."""
+    data = request.get_json() or {}
+    clear_all = bool(data.get("clear_all"))
+    incident_ids = data.get("incident_ids") or []
+    if not clear_all and not incident_ids:
+        return jsonify({"error": "Provide incident_ids or clear_all"}), 400
+    result = threat_engine.delete_incidents(incident_ids=incident_ids, clear_all=clear_all)
+    return jsonify(result)
+
+
 @app.route("/api/update_rules", methods=["POST"])
 def api_update_rules():
     """Update detection rules, threshold sliders, and alert configurations."""
-    if session.get("role") != "Admin":
-        return jsonify({"error": "Unauthorized. Admin role required to modify security rules."}), 403
+    denied = require_admin()
+    if denied:
+        return denied
 
     data = request.get_json() or {}
     updated = threat_engine.update_rules(data)
     return jsonify({"success": True, "rules": updated})
 
 
+@app.route("/api/rules", methods=["GET"])
+def api_get_rules():
+    """Return current threat rules (safe for Operators to read; Admins edit via POST)."""
+    return jsonify(threat_engine.rules)
+
+
 @app.route("/api/cameras", methods=["GET", "POST"])
 def api_cameras():
     """List or update surveillance camera streams."""
     if request.method == "POST":
+        denied = require_admin()
+        if denied:
+            return denied
         data = request.get_json() or {}
         cam_id = int(data.get("cam_id", 1))
         name = data.get("name")
@@ -396,6 +434,9 @@ def api_cameras():
 @app.route("/api/dispatch_test_alert", methods=["POST"])
 def api_dispatch_test_alert():
     """Test emergency webhook / email / SMS dispatch."""
+    denied = require_admin()
+    if denied:
+        return denied
     data = request.get_json() or {}
     mock_incident = {
         "incident_id": f"TEST-{datetime.now().strftime('%Y%m%d%H%M%S')}",
@@ -414,11 +455,48 @@ def api_dispatch_test_alert():
 
 @app.route("/api/auth/switch_role", methods=["POST"])
 def switch_role():
-    """Switch user role between Admin and Security Operator."""
+    """Switch role only when the matching role password is provided."""
     data = request.get_json() or {}
-    target_role = data.get("role", "Operator")
-    session["role"] = "Admin" if target_role.lower() == "admin" else "Security Operator"
+    target_role = str(data.get("role", "Operator")).strip().lower()
+    password = str(data.get("password", ""))
+
+    want_admin = target_role == "admin"
+    expected = ADMIN_PASSWORD if want_admin else OPERATOR_PASSWORD
+    if not password or not hmac.compare_digest(password, expected):
+        label = "Admin" if want_admin else "Security Operator"
+        return jsonify({"error": f"Incorrect {label} password."}), 401
+
+    session["role"] = "Admin" if want_admin else "Security Operator"
+    session["authenticated_at"] = datetime.now().isoformat(timespec="seconds")
     return jsonify({"success": True, "current_role": session["role"]})
+
+
+@app.route("/api/auth/role", methods=["GET"])
+def get_role():
+    """Return current session role for UI gating."""
+    role = session.get("role", "Security Operator")
+    return jsonify({
+        "current_role": role,
+        "is_admin": role == "Admin",
+        "capabilities": {
+            "triage_incidents": True,
+            "view_streams": True,
+            "run_forensics": True,
+            "configure_rules": role == "Admin",
+            "dispatch_test_alerts": role == "Admin",
+            "enroll_identities": role == "Admin",
+            "configure_cameras": role == "Admin",
+        },
+    })
+
+
+def require_admin():
+    """Return a 403 JSON response if the session is not Admin."""
+    if session.get("role") != "Admin":
+        return jsonify({
+            "error": "Admin role required. Switch to Admin for configuration and enrollment."
+        }), 403
+    return None
 
 
 @app.route("/results/incident_snapshots/<path:filename>")
@@ -545,42 +623,80 @@ def upload_image_page():
 
 @app.route("/upload_image", methods=["POST"])
 def upload_image():
-    if "image" not in request.files:
-        return jsonify({"error": "No image uploaded"}), 400
+    try:
+        if "image" not in request.files:
+            return jsonify({"error": "No image uploaded"}), 400
 
-    file = request.files["image"]
-    if file.filename == "":
-        return jsonify({"error": "No file selected"}), 400
+        file = request.files["image"]
+        if not file or file.filename == "":
+            return jsonify({"error": "No file selected"}), 400
 
-    ext = file.filename.rsplit(".", 1)[-1].lower()
-    if ext not in ALLOWED_IMAGE_EXT:
-        return jsonify({"error": f"Unsupported file type: {ext}"}), 400
+        raw_name = secure_filename(file.filename) or "upload.jpg"
+        ext = raw_name.rsplit(".", 1)[-1].lower() if "." in raw_name else ""
+        if ext not in ALLOWED_IMAGE_EXT:
+            # Browsers sometimes omit extension; sniff from content type
+            mime = (file.mimetype or "").lower()
+            if "png" in mime:
+                ext = "png"
+                raw_name = f"{raw_name}.png"
+            elif "webp" in mime:
+                ext = "webp"
+                raw_name = f"{raw_name}.webp"
+            elif "jpeg" in mime or "jpg" in mime or not ext:
+                ext = "jpg"
+                raw_name = f"{Path(raw_name).stem or 'upload'}.jpg"
+            else:
+                return jsonify({"error": f"Unsupported file type: {ext or mime}"}), 400
 
-    filename = f"{uuid.uuid4().hex}_{secure_filename(file.filename)}"
-    upload_path = UPLOAD_FOLDER / filename
-    file.save(upload_path)
+        filename = f"{uuid.uuid4().hex}_{raw_name}"
+        upload_path = UPLOAD_FOLDER / filename
+        file.save(upload_path)
 
-    annotated_frame, results = face_engine.process_image_file(upload_path)
-    if annotated_frame is None:
-        return jsonify({"error": "Could not process image"}), 500
+        # Downscale very large phone photos for stable OpenCV DNN inference
+        frame = cv2.imread(str(upload_path))
+        if frame is None:
+            return jsonify({"error": "Could not read uploaded image. Try JPG or PNG."}), 400
 
-    result_filename = f"result_{filename}"
-    result_path = RESULTS_FOLDER / result_filename
-    cv2.imwrite(str(result_path), annotated_frame)
+        h, w = frame.shape[:2]
+        max_side = 1280
+        if max(h, w) > max_side:
+            scale = max_side / float(max(h, w))
+            frame = cv2.resize(
+                frame,
+                (int(w * scale), int(h * scale)),
+                interpolation=cv2.INTER_AREA,
+            )
+            cv2.imwrite(str(upload_path), frame, [cv2.IMWRITE_JPEG_QUALITY, 92])
 
-    with open(upload_path, "rb") as f:
-        original_b64 = base64.b64encode(f.read()).decode()
+        annotated_frame, results = face_engine.process_image_file(upload_path)
 
-    _, buf = cv2.imencode(".jpg", annotated_frame)
-    result_b64 = base64.b64encode(buf.tobytes()).decode()
+        if annotated_frame is None:
+            return jsonify({"error": results.get("error", "Could not process image")}), 500
 
-    return jsonify({
-        "success": True,
-        "original_image": f"data:image/jpeg;base64,{original_b64}",
-        "result_image": f"data:image/jpeg;base64,{result_b64}",
-        "results": results,
-        "alert": results.get("alert", False)
-    })
+        result_filename = f"result_{Path(filename).stem}.jpg"
+        result_path = RESULTS_FOLDER / result_filename
+        cv2.imwrite(str(result_path), annotated_frame, [cv2.IMWRITE_JPEG_QUALITY, 90])
+
+        ok, buf = cv2.imencode(".jpg", annotated_frame, [cv2.IMWRITE_JPEG_QUALITY, 85])
+        if not ok:
+            return jsonify({"error": "Could not encode result image"}), 500
+        result_b64 = base64.b64encode(buf.tobytes()).decode()
+
+        # Prefer client preview for original; send compact JPEG of what was analyzed
+        ok2, orig_buf = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 80])
+        original_b64 = base64.b64encode(orig_buf.tobytes()).decode() if ok2 else result_b64
+
+        return jsonify({
+            "success": True,
+            "original_image": f"data:image/jpeg;base64,{original_b64}",
+            "result_image": f"data:image/jpeg;base64,{result_b64}",
+            "results": results,
+            "alert": bool(results.get("alert", False)),
+        })
+    except Exception as exc:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": f"Image analysis failed: {exc}"}), 500
 
 
 @app.route("/upload_video", methods=["GET"])
@@ -635,7 +751,14 @@ def get_video_progress(job_id):
 
 @app.route("/results/<filename>")
 def serve_result(filename):
-    return send_from_directory(RESULTS_FOLDER, filename)
+    # as_attachment=False lets the browser play H.264 MP4 inline;
+    # download= on the UI link still forces a file save when clicked.
+    return send_from_directory(
+        RESULTS_FOLDER,
+        filename,
+        mimetype="video/mp4" if filename.lower().endswith(".mp4") else None,
+        conditional=True,
+    )
 
 
 # ──────────────────────── Alerts & Management ───────────────────────── #
@@ -665,6 +788,73 @@ def persons_page():
     return ui_redirect("/persons")
 
 
+def _safe_person_dirname(raw_name: str):
+    """Map a person name to a known_persons folder; reject path traversal."""
+    if not raw_name:
+        return None
+    dir_name = raw_name.strip().replace(" ", "_")
+    if not dir_name or "/" in dir_name or "\\" in dir_name or ".." in dir_name:
+        return None
+    # Keep only safe characters (letters, digits, underscore, hyphen, dot)
+    cleaned = "".join(c for c in dir_name if c.isalnum() or c in ("_", "-", "."))
+    return cleaned or None
+
+
+@app.route("/api/persons/<path:person_name>")
+def api_person_detail(person_name):
+    """Return enrolled photos for one identity (Admin catalog)."""
+    denied = require_admin()
+    if denied:
+        return denied
+
+    dir_name = _safe_person_dirname(person_name)
+    if not dir_name:
+        return jsonify({"error": "Invalid person name"}), 400
+
+    person_dir = Path("dataset/known_persons") / dir_name
+    if not person_dir.is_dir():
+        return jsonify({"error": "Identity not found"}), 404
+
+    images = []
+    for path in sorted(person_dir.iterdir()):
+        if not path.is_file():
+            continue
+        ext = path.suffix.lstrip(".").lower()
+        if ext not in ALLOWED_IMAGE_EXT:
+            continue
+        images.append({
+            "filename": path.name,
+            "url": f"/dataset/known_persons/{dir_name}/{path.name}",
+        })
+
+    return jsonify({
+        "name": dir_name,
+        "display_name": dir_name.replace("_", " "),
+        "image_count": len(images),
+        "images": images,
+    })
+
+
+@app.route("/dataset/known_persons/<person_name>/<filename>")
+def serve_person_image(person_name, filename):
+    """Serve an enrolled identity photo from the dataset."""
+    denied = require_admin()
+    if denied:
+        return denied
+
+    dir_name = _safe_person_dirname(person_name)
+    safe_file = secure_filename(filename)
+    if not dir_name or not safe_file:
+        return jsonify({"error": "Invalid path"}), 400
+
+    person_dir = (Path("dataset/known_persons") / dir_name).resolve()
+    root = Path("dataset/known_persons").resolve()
+    if not str(person_dir).startswith(str(root)) or not person_dir.is_dir():
+        return jsonify({"error": "Identity not found"}), 404
+
+    return send_from_directory(person_dir, safe_file)
+
+
 @app.route("/add_person", methods=["GET"])
 def add_person_page():
     return ui_redirect("/persons/add")
@@ -672,6 +862,10 @@ def add_person_page():
 
 @app.route("/add_person", methods=["POST"])
 def add_person():
+    denied = require_admin()
+    if denied:
+        return denied
+
     name = request.form.get("name", "").strip()
     if not name:
         return jsonify({"error": "Person name is required"}), 400

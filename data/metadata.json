@@ -1,13 +1,14 @@
 {
-  "total_persons": 51,
-  "total_images_processed": 2774,
-  "total_faces_extracted": 2774,
+  "total_persons": 52,
+  "total_images_processed": 2788,
+  "total_faces_extracted": 2788,
   "model": "SFace Deep Neural Network (128D)",
   "detector": "YuNet DNN",
   "cosine_threshold": 0.363,
   "persons": [
     "Alejandro Toledo",
     "Alvaro Uribe",
+    "Amir Shahzad",
     "Andre Agassi",
     "Ariel Sharon",
     "Arnold Schwarzenegger",
