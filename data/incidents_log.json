@@ -68,5 +68,19 @@
     "status": "Pending Review",
     "verified_at": null,
     "verifier_notes": ""
+  },
+  {
+    "incident_id": "INC-20260906-28D573",
+    "camera_id": "Camera 27 - Main Entrance",
+    "location": "Campus Safety Zone",
+    "timestamp": "2026-09-06 02:09:48",
+    "threat_type": "Person Down",
+    "confidence": 60,
+    "details": "Fall detected (Aspect ratio: 1.36)",
+    "snapshot_url": "/results/incident_snapshots/INC-20260906-28D573.jpg",
+    "video_clip_url": "/results/incident_clips/INC-20260906-28D573.mp4",
+    "status": "Pending Review",
+    "verified_at": null,
+    "verifier_notes": ""
   }
 ]
