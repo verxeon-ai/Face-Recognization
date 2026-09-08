@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 
 export function Footer() {
-  const [localIp, setLocalIp] = useState<string | null>(null);
+  const [endpointLabel, setEndpointLabel] = useState<string>("…");
   const [online, setOnline] = useState(false);
 
   useEffect(() => {
@@ -18,7 +18,11 @@ export function Footer() {
         setOnline(statsRes.ok);
         if (ipRes.ok) {
           const data = await ipRes.json();
-          if (data?.local_ip) setLocalIp(data.local_ip);
+          if (data?.public_base_url) {
+            setEndpointLabel(data.public_base_url.replace(/^https?:\/\//, ""));
+          } else if (data?.local_ip) {
+            setEndpointLabel(`${data.local_ip}:5001`);
+          }
         }
       } catch {
         if (!cancelled) setOnline(false);
@@ -37,9 +41,7 @@ export function Footer() {
       <div className="mx-auto flex max-w-[1600px] flex-wrap items-center justify-between gap-3 px-4 py-3 text-[11px] text-aegis-muted lg:px-6">
         <div className="font-medium tracking-wide">AegisAI · Video Threat Defense</div>
         <div className="flex flex-wrap items-center gap-3 font-mono">
-          <span>Endpoint: {localIp || "…"}:5001</span>
-          <span>UI: :3000</span>
-          <span>Phone HTTPS: :5443</span>
+          <span>Endpoint: {endpointLabel}</span>
           <span
             className={`inline-flex items-center gap-1.5 ${
               online ? "text-aegis-green" : "text-aegis-red"

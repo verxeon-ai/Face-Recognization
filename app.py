@@ -27,6 +27,7 @@ from pathlib import Path
 from datetime import datetime
 from flask import (Flask, request, jsonify, Response,
                    send_from_directory, session, redirect)
+from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.utils import secure_filename
 
 try:
@@ -44,7 +45,24 @@ app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "vision_security_secret_key_prod_v2")
 app.config["MAX_CONTENT_LENGTH"] = 500 * 1024 * 1024  # 500 MB max upload
 app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0
+# Trust ALB / nginx X-Forwarded-* headers (HTTPS termination)
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
+
 NEXT_UI_ORIGIN = os.environ.get("NEXT_UI_ORIGIN", "http://localhost:3000").rstrip("/")
+# Public HTTPS URL when behind ALB/CloudFront (e.g. https://aegis.example.com)
+PUBLIC_BASE_URL = os.environ.get("PUBLIC_BASE_URL", "").rstrip("/")
+# Local LAN self-signed proxy on :5443 — disable on AWS (ALB provides HTTPS)
+ENABLE_LOCAL_HTTPS_PROXY = os.environ.get(
+    "ENABLE_LOCAL_HTTPS_PROXY", "true"
+).strip().lower() in ("1", "true", "yes", "on")
+PHONE_HTTPS_PORT = int(os.environ.get("PHONE_HTTPS_PORT", "5443"))
+SKIP_LOCAL_WEBCAM = os.environ.get(
+    "SKIP_LOCAL_WEBCAM", "false"
+).strip().lower() in ("1", "true", "yes", "on")
+
+if PUBLIC_BASE_URL.startswith("https://"):
+    app.config["SESSION_COOKIE_SECURE"] = True
+    app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 
 # Role unlock passwords (override via .env)
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "admin123")
@@ -91,22 +109,46 @@ class MultiCameraManager:
         }
         self.init_primary_cam()
 
+    def _open_local_webcam(self):
+        """Open device 0. CAP_DSHOW is Windows-only; skip on Linux/AWS."""
+        if SKIP_LOCAL_WEBCAM:
+            return None
+        try:
+            cap = None
+            if os.name == "nt":
+                cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
+            if cap is None or not cap.isOpened():
+                cap = cv2.VideoCapture(0)
+            if cap is not None and cap.isOpened():
+                cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+                cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+                cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+                return cap
+            if cap is not None:
+                cap.release()
+        except Exception as e:
+            print(f"[MultiCameraManager] Could not open camera 0: {e}")
+        return None
+
     def init_primary_cam(self):
         with self.lock:
-            try:
-                cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
-                if not cap.isOpened():
-                    cap = cv2.VideoCapture(0)
-                if cap.isOpened():
-                    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-                    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
-                    cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
-                    self.cameras[1]["cap"] = cap
-                    print("[MultiCameraManager] Camera 0 successfully connected!")
-            except Exception as e:
-                print(f"[MultiCameraManager] Could not open camera 0: {e}")
+            cap = self._open_local_webcam()
+            if cap is not None:
+                self.cameras[1]["cap"] = cap
+                print("[MultiCameraManager] Camera 0 successfully connected!")
+            else:
+                print(
+                    "[MultiCameraManager] No local webcam — "
+                    "use phone camera (/mobile-cam) or RTSP on AWS."
+                )
 
     def get_frame(self, cam_id=1):
+        # Prefer live phone frames on cloud hosts without a USB webcam
+        if cam_id == 1 and phone_stream_connected():
+            with phone_frame_lock:
+                if latest_phone_raw is not None:
+                    return latest_phone_raw.copy()
+
         with self.lock:
             cam_info = self.cameras.get(cam_id)
             if not cam_info:
@@ -115,13 +157,8 @@ class MultiCameraManager:
             cap = cam_info.get("cap")
             if (cap is None or not cap.isOpened()) and cam_id == 1:
                 try:
-                    cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
-                    if not cap.isOpened():
-                        cap = cv2.VideoCapture(0)
-                    if cap.isOpened():
-                        cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-                        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
-                        cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+                    cap = self._open_local_webcam()
+                    if cap is not None:
                         self.cameras[1]["cap"] = cap
                 except Exception:
                     pass
@@ -155,7 +192,8 @@ cam_manager = MultiCameraManager()
 
 # Buffers for Phone stream (via QR scan mobile web page)
 phone_frame_lock = threading.Lock()
-latest_phone_frame = None
+latest_phone_frame = None  # annotated (UI preview)
+latest_phone_raw = None     # raw frames for SOC / live-face pipelines
 latest_phone_time = 0
 latest_threat_hud = {}
 
@@ -171,6 +209,16 @@ def get_local_ip():
     finally:
         s.close()
     return ip
+
+
+def get_phone_cam_url():
+    """
+    HTTPS URL phones must open for getUserMedia.
+    Cloud: PUBLIC_BASE_URL (ALB/ACM). Local: https://LAN:5443
+    """
+    if PUBLIC_BASE_URL:
+        return f"{PUBLIC_BASE_URL}/mobile-cam"
+    return f"https://{get_local_ip()}:{PHONE_HTTPS_PORT}/mobile-cam"
 
 
 def generate_threat_stream(cam_id=1):
@@ -566,12 +614,13 @@ def _decode_phone_image(data):
 @app.route("/upload_phone_frame", methods=["POST"])
 def upload_phone_frame():
     """Endpoint for mobile browser to push JPEG frame."""
-    global latest_phone_frame, latest_phone_time
+    global latest_phone_frame, latest_phone_raw, latest_phone_time
     frame = _decode_phone_image(request.get_json())
     if frame is None:
         return jsonify({"error": "No frame data"}), 400
 
     with phone_frame_lock:
+        latest_phone_raw = frame
         latest_phone_frame = frame
         latest_phone_time = time.time()
     return jsonify({"success": True})
@@ -580,7 +629,7 @@ def upload_phone_frame():
 @app.route("/api/stream_phone_frame", methods=["POST"])
 def stream_phone_frame():
     """Receive phone camera frame, run recognition, update live phone stream."""
-    global latest_phone_frame, latest_phone_time
+    global latest_phone_frame, latest_phone_raw, latest_phone_time
     frame = _decode_phone_image(request.get_json())
     if frame is None:
         return jsonify({"error": "No image data"}), 400
@@ -589,6 +638,7 @@ def stream_phone_frame():
     display = annotated if annotated is not None else frame
 
     with phone_frame_lock:
+        latest_phone_raw = frame
         latest_phone_frame = display
         latest_phone_time = time.time()
 
@@ -780,7 +830,26 @@ def api_stats():
 
 @app.route("/api/local_ip")
 def api_local_ip():
-    return jsonify({"local_ip": get_local_ip(), "phone_https_port": 5443})
+    """LAN discovery + cloud phone HTTPS URL for QR handshake."""
+    local_ip = get_local_ip()
+    phone_url = get_phone_cam_url()
+    return jsonify({
+        "local_ip": local_ip,
+        "phone_https_port": PHONE_HTTPS_PORT,
+        "public_base_url": PUBLIC_BASE_URL or None,
+        "phone_cam_url": phone_url,
+        "deployment": "cloud" if PUBLIC_BASE_URL else "local",
+    })
+
+
+@app.route("/api/health")
+def api_health():
+    """ALB / Docker health check — lightweight, no model work."""
+    return jsonify({
+        "status": "ok",
+        "service": "aegisai-backend",
+        "phone_connected": phone_stream_connected(),
+    })
 
 
 @app.route("/persons")
@@ -1017,21 +1086,25 @@ def start_https_phone_server(port=5443):
 
 if __name__ == "__main__":
     local_ip = get_local_ip()
-    https_port = 5443
-    http_port = 5001
+    https_port = PHONE_HTTPS_PORT
+    http_port = int(os.environ.get("PORT", "5001"))
 
-    threading.Thread(
-        target=start_https_phone_server,
-        kwargs={"port": https_port},
-        daemon=True,
-    ).start()
+    if ENABLE_LOCAL_HTTPS_PROXY:
+        threading.Thread(
+            target=start_https_phone_server,
+            kwargs={"port": https_port},
+            daemon=True,
+        ).start()
 
     print("\n" + "=" * 65)
     print("  AegisAI Backend API + Stream Server")
-    print(f"  Flask API/Streams:  http://localhost:{http_port}")
+    print(f"  Flask API/Streams:  http://0.0.0.0:{http_port}")
     print(f"  Next.js UI:         {NEXT_UI_ORIGIN}")
-    print(f"  Phone HTTPS proxy:  https://{local_ip}:{https_port}/mobile-cam")
-    print("  Start UI with:      cd frontend && npm run dev")
+    print(f"  Phone camera URL:   {get_phone_cam_url()}")
+    if ENABLE_LOCAL_HTTPS_PROXY:
+        print(f"  Local HTTPS proxy:  https://{local_ip}:{https_port}/mobile-cam")
+    else:
+        print("  Local HTTPS proxy:  disabled (use ALB/ACM PUBLIC_BASE_URL)")
     print("=" * 65 + "\n")
 
     app.run(

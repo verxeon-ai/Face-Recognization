@@ -16,6 +16,7 @@ const nextConfig = {
       { source: "/api/alerts", destination: `${backend}/api/alerts` },
       { source: "/api/stats", destination: `${backend}/api/stats` },
       { source: "/api/local_ip", destination: `${backend}/api/local_ip` },
+      { source: "/api/health", destination: `${backend}/api/health` },
       { source: "/api/persons/:name*", destination: `${backend}/api/persons/:name*` },
       { source: "/dataset/known_persons/:path*", destination: `${backend}/dataset/known_persons/:path*` },
       { source: "/threat_video_feed", destination: `${backend}/threat_video_feed` },

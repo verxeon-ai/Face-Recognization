@@ -16,29 +16,52 @@ export default function MobileStreamerPage() {
   const [status, setStatus] = useState<PhoneStatus | null>(null);
   const [localIp, setLocalIp] = useState("");
   const [ipReady, setIpReady] = useState(false);
+  const [phoneCamUrl, setPhoneCamUrl] = useState("");
+  const [isCloud, setIsCloud] = useState(false);
 
   useEffect(() => {
     const host = window.location.hostname;
+    const isLocalHost = host === "localhost" || host === "127.0.0.1";
+
+    // Cloud / HTTPS deploy: same-origin /mobile-cam (ALB terminates TLS)
+    if (
+      typeof window !== "undefined" &&
+      window.location.protocol === "https:" &&
+      !isLocalHost
+    ) {
+      const url = `${window.location.origin}/mobile-cam`;
+      setPhoneCamUrl(url);
+      setLocalIp(host);
+      setIsCloud(true);
+      setIpReady(true);
+    }
+
     fetch("/api/local_ip")
       .then((r) => r.json())
       .then((data) => {
+        if (data?.phone_cam_url) {
+          setPhoneCamUrl(data.phone_cam_url);
+          setIsCloud(data.deployment === "cloud" || !!data.public_base_url);
+        }
         if (data?.local_ip) {
           setLocalIp(data.local_ip);
           setIpReady(true);
-        } else if (host && host !== "localhost" && host !== "127.0.0.1") {
+        } else if (host && !isLocalHost) {
           setLocalIp(host);
           setIpReady(true);
-        } else {
-          setLocalIp("");
+        } else if (!data?.phone_cam_url) {
           setIpReady(false);
         }
       })
       .catch(() => {
-        if (host && host !== "localhost" && host !== "127.0.0.1") {
+        if (host && !isLocalHost) {
           setLocalIp(host);
           setIpReady(true);
+          if (window.location.protocol === "https:") {
+            setPhoneCamUrl(`${window.location.origin}/mobile-cam`);
+            setIsCloud(true);
+          }
         } else {
-          setLocalIp("");
           setIpReady(false);
         }
       });
@@ -50,14 +73,14 @@ export default function MobileStreamerPage() {
   }, 1000);
 
   const connected = !!status?.connected;
-  const canQr = !!localIp.trim();
-  const mobileUrl = useMemo(
-    () =>
-      canQr
-        ? `https://${localIp.trim()}:${PHONE_HTTPS_PORT}/mobile-cam`
-        : "",
-    [localIp, canQr]
-  );
+  const mobileUrl = useMemo(() => {
+    if (phoneCamUrl.trim()) return phoneCamUrl.trim();
+    if (localIp.trim()) {
+      return `https://${localIp.trim()}:${PHONE_HTTPS_PORT}/mobile-cam`;
+    }
+    return "";
+  }, [phoneCamUrl, localIp]);
+  const canQr = !!mobileUrl;
 
   return (
     <div>
@@ -124,32 +147,56 @@ export default function MobileStreamerPage() {
                       : ""}
                   </div>
                 )}
-                <label className="mb-2 block text-left text-[11px] text-aegis-muted">
-                  Laptop LAN IP (editable)
-                  <input
-                    className="mt-1 font-mono text-aegis-cyan"
-                    value={localIp}
-                    onChange={(e) => setLocalIp(e.target.value)}
-                    placeholder="192.168.x.x"
-                  />
-                </label>
+                {!isCloud ? (
+                  <label className="mb-2 block text-left text-[11px] text-aegis-muted">
+                    Laptop LAN IP (editable)
+                    <input
+                      className="mt-1 font-mono text-aegis-cyan"
+                      value={localIp}
+                      onChange={(e) => {
+                        setLocalIp(e.target.value);
+                        setPhoneCamUrl("");
+                      }}
+                      placeholder="192.168.x.x"
+                    />
+                  </label>
+                ) : (
+                  <p className="mb-2 text-left text-[11px] text-aegis-muted">
+                    Cloud HTTPS mode — QR uses your public URL (no cert warning).
+                  </p>
+                )}
                 {canQr ? (
                   <div className="break-all rounded-lg border border-aegis-border bg-black/50 px-3 py-2 font-mono text-xs text-aegis-cyan">
                     {mobileUrl}
                   </div>
                 ) : null}
                 <p className="mt-3 text-left text-[11px] leading-relaxed text-aegis-secondary">
-                  1) Same Wi‑Fi as this laptop
-                  <br />
-                  2) Scan QR → on phone tap{" "}
-                  <strong className="text-aegis-text">
-                    Advanced → Proceed / Visit Site
-                  </strong>{" "}
-                  (accept the certificate warning)
-                  <br />
-                  3) Tap{" "}
-                  <strong className="text-aegis-text">Allow Camera</strong> —
-                  live video appears on this page
+                  {isCloud ? (
+                    <>
+                      1) Scan QR on any network
+                      <br />
+                      2) Tap{" "}
+                      <strong className="text-aegis-text">Allow Camera</strong>{" "}
+                      — live video appears on this page
+                      <br />
+                      3) SOC / Live Face also use this phone feed on AWS (no
+                      server webcam)
+                    </>
+                  ) : (
+                    <>
+                      1) Same Wi‑Fi as this laptop
+                      <br />
+                      2) Scan QR → on phone tap{" "}
+                      <strong className="text-aegis-text">
+                        Advanced → Proceed / Visit Site
+                      </strong>{" "}
+                      (accept the certificate warning)
+                      <br />
+                      3) Tap{" "}
+                      <strong className="text-aegis-text">Allow Camera</strong>{" "}
+                      — live video appears on this page
+                    </>
+                  )}
                 </p>
                 {canQr ? (
                   <a
@@ -158,7 +205,8 @@ export default function MobileStreamerPage() {
                     rel="noreferrer"
                     className="mt-3 inline-block text-xs font-semibold text-aegis-cyan hover:underline"
                   >
-                    Open mobile-cam link (cert accept)
+                    Open mobile-cam link
+                    {isCloud ? "" : " (cert accept)"}
                   </a>
                 ) : null}
               </div>
