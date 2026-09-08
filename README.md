@@ -70,6 +70,25 @@ Open: [http://localhost:3000](http://localhost:3000)
 
 ---
 
+## Deploy on AWS (webcam / phone camera)
+
+EC2 has no USB webcam. Use **phone camera over HTTPS** (ALB + ACM).
+
+Full guide: [docs/AWS_DEPLOY.md](docs/AWS_DEPLOY.md)
+
+Quick path:
+
+```bash
+# On Ubuntu EC2 after copying the project
+sudo bash deploy/ec2-bootstrap.sh
+cp deploy/env.aws.example .env.aws   # set PUBLIC_BASE_URL=https://your-domain
+docker compose --env-file .env.aws up -d --build
+```
+
+Then put an **Application Load Balancer** with an **ACM HTTPS certificate** in front of instance port 80. Phone QR becomes `https://your-domain/mobile-cam`.
+
+---
+
 ## Main UI routes
 
 | Route | Page |
