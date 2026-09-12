@@ -192,14 +192,21 @@ class FaceRecognitionEngine:
         if frame is None or frame.size == 0:
             return None, [], []
 
+        t_start = time.time()
+
         annotated = frame.copy()
         h, w = frame.shape[:2]
         recognized = []
         unknowns = []
 
         if self.yunet is not None and self.sface is not None:
+            t_det_start = time.time()
             self.yunet.setInputSize((w, h))
             _, faces = self.yunet.detect(frame)
+            t_det = time.time() - t_det_start
+
+            t_embed_total = 0.0
+            t_match_total = 0.0
 
             if faces is not None and len(faces) > 0:
                 for f in faces:
@@ -211,32 +218,38 @@ class FaceRecognitionEngine:
                     if bw < 18 or bh < 18:
                         continue
 
-                    # Deep alignment and feature extraction
                     try:
+                        t_emb_start = time.time()
                         aligned = self.sface.alignCrop(frame, f)
                         feat = self.sface.feature(aligned)
+                        t_embed_total += time.time() - t_emb_start
+
+                        t_match_start = time.time()
                         name, confidence, score = self.match_face(feat)
-                    except Exception:
+                        t_match_total += time.time() - t_match_start
+                    except Exception as e:
+                        print(f"[Pipeline] alignCrop/feature failed: {e}")
                         name, confidence, score = "Unknown", 0, 0.0
 
                     if name == "Unknown":
                         color = (0, 0, 240)   # Red
                         label = "UNKNOWN (ALERT!)"
                         unknowns.append({"time": datetime.now().isoformat(), "confidence": confidence})
-                        self._log_alert("Unknown person detected in camera view", confidence=confidence)
                     else:
                         color = (0, 220, 50)  # Green
                         label = f"{name} ({confidence}%)"
                         recognized.append({"name": name, "confidence": confidence, "score": score})
 
-                    # Draw bounding box
                     cv2.rectangle(annotated, (bx, by), (bx + bw, by + bh), color, 2)
-
-                    # Draw text banner
                     (lw, lh), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.55, 2)
                     cv2.rectangle(annotated, (bx, by - lh - 10), (bx + lw + 8, by), color, -1)
                     cv2.putText(annotated, label, (bx + 4, by - 4),
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.55, (255, 255, 255), 2)
+
+            t_total = time.time() - t_start
+            n_faces = len(faces) if faces is not None else 0
+            if n_faces > 0:
+                print(f"[Pipeline] det={t_det*1000:.0f}ms embed={t_embed_total*1000:.0f}ms match={t_match_total*1000:.0f}ms total={t_total*1000:.0f}ms faces={n_faces}")
 
         # Status HUD Overlay
         ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")

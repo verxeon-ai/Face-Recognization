@@ -854,7 +854,7 @@ DEMO_FACE = Path("test_videos/face.png")
 
 
 def generate_demo_stream():
-    """Read test video frame-by-frame, run face recognition, stream annotated MJPEG."""
+    """Read test video, run face recognition every N frames, stream annotated MJPEG."""
     cap = cv2.VideoCapture(str(DEMO_VIDEO))
     if not cap.isOpened():
         placeholder = np.zeros((480, 640, 3), dtype=np.uint8)
@@ -864,28 +864,34 @@ def generate_demo_stream():
         yield (b"--frame\r\nContent-Type: image/jpeg\r\n\r\n" + buf.tobytes() + b"\r\n")
         return
 
-    fps = cap.get(cv2.CAP_PROP_FPS) or 25
-    frame_delay = 1.0 / fps
+    frame_idx = 0
+    detect_every = 5
+    loop_count = 0
 
     while True:
-        cap.set(cv2.CAP_PROP_POS_FRAMES, 0)  # loop from start
+        cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+        loop_count += 1
+        print(f"[Demo] Loop #{loop_count} started")
         while True:
             ret, frame = cap.read()
             if not ret:
+                print(f"[Demo] EOF at frame {frame_idx}, rewinding")
                 break
-            annotated, recognized, unknowns = face_engine.process_frame(frame)
 
-            # Draw demo banner
-            h, w = annotated.shape[:2]
-            cv2.rectangle(annotated, (0, 0), (w, 32), (12, 14, 18), -1)
-            label = "DEMO MODE | AI Face Recognition Live"
-            cv2.putText(annotated, label, (10, 22),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (56, 189, 248), 2)
+            if frame_idx % detect_every == 0:
+                annotated, _, _ = face_engine.process_frame(frame)
+                h, w = annotated.shape[:2]
+                cv2.rectangle(annotated, (0, 0), (w, 32), (12, 14, 18), -1)
+                cv2.putText(annotated, "DEMO MODE | AI Face Recognition Live", (10, 22),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, (56, 189, 248), 2)
+            else:
+                annotated = frame
 
+            frame_idx += 1
             _, buffer = cv2.imencode(".jpg", annotated, [cv2.IMWRITE_JPEG_QUALITY, 80])
             yield (b"--frame\r\nContent-Type: image/jpeg\r\n\r\n"
                    + buffer.tobytes() + b"\r\n")
-            time.sleep(frame_delay)
+            time.sleep(0.05)
 
     cap.release()
 
