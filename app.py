@@ -364,20 +364,20 @@ def inject_global_vars():
 
 @app.route("/")
 def index():
-    """Legacy root -> Next.js video scanner."""
-    return ui_redirect("/video-scanner")
+    """Legacy root -> Next.js demo page."""
+    return ui_redirect("/demo")
 
 
 @app.route("/threat_dashboard")
 def threat_dashboard():
-    """Legacy SOC page -> Next.js /video-scanner."""
-    return ui_redirect("/video-scanner")
+    """Legacy SOC page -> Next.js /demo."""
+    return ui_redirect("/demo")
 
 
 @app.route("/multi_camera")
 def multi_camera():
-    """Legacy multi-camera wall removed -> send users to video scanner."""
-    return ui_redirect("/video-scanner")
+    """Legacy multi-camera wall removed -> send users to demo."""
+    return ui_redirect("/demo")
 
 
 @app.route("/threat_video_feed")
@@ -845,6 +845,92 @@ def api_health():
         "service": "aegisai-backend",
         "phone_connected": phone_stream_connected(),
     })
+
+
+# ─────────────────────── Demo Mode (Auto-play) ───────────────────────── #
+
+DEMO_VIDEO = Path("test_videos/video.mp4")
+DEMO_FACE = Path("test_videos/face.png")
+
+
+def generate_demo_stream():
+    """Read test video frame-by-frame, run face recognition, stream annotated MJPEG."""
+    cap = cv2.VideoCapture(str(DEMO_VIDEO))
+    if not cap.isOpened():
+        placeholder = np.zeros((480, 640, 3), dtype=np.uint8)
+        cv2.putText(placeholder, "Demo video not found", (180, 240),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+        _, buf = cv2.imencode(".jpg", placeholder)
+        yield (b"--frame\r\nContent-Type: image/jpeg\r\n\r\n" + buf.tobytes() + b"\r\n")
+        return
+
+    fps = cap.get(cv2.CAP_PROP_FPS) or 25
+    frame_delay = 1.0 / fps
+
+    while True:
+        cap.set(cv2.CAP_PROP_POS_FRAMES, 0)  # loop from start
+        while True:
+            ret, frame = cap.read()
+            if not ret:
+                break
+            annotated, recognized, unknowns = face_engine.process_frame(frame)
+
+            # Draw demo banner
+            h, w = annotated.shape[:2]
+            cv2.rectangle(annotated, (0, 0), (w, 32), (12, 14, 18), -1)
+            label = "DEMO MODE | AI Face Recognition Live"
+            cv2.putText(annotated, label, (10, 22),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (56, 189, 248), 2)
+
+            _, buffer = cv2.imencode(".jpg", annotated, [cv2.IMWRITE_JPEG_QUALITY, 80])
+            yield (b"--frame\r\nContent-Type: image/jpeg\r\n\r\n"
+                   + buffer.tobytes() + b"\r\n")
+            time.sleep(frame_delay)
+
+    cap.release()
+
+
+@app.route("/api/demo/stream")
+def demo_stream():
+    """MJPEG stream from test video with live face recognition."""
+    return Response(
+        generate_demo_stream(),
+        mimetype="multipart/x-mixed-replace; boundary=frame"
+    )
+
+
+@app.route("/api/demo/face")
+def demo_face():
+    """Serve the demo face image."""
+    if DEMO_FACE.exists():
+        return send_from_directory(DEMO_FACE.parent, DEMO_FACE.name)
+    return jsonify({"error": "Demo face not found"}), 404
+
+
+@app.route("/api/demo/enroll", methods=["POST"])
+def demo_enroll_face():
+    """Auto-enroll the demo face into known persons for recognition."""
+    if not DEMO_FACE.exists():
+        return jsonify({"error": "Demo face image not found"}), 404
+
+    person_name = request.json.get("name", "Demo_Person") if request.is_json else "Demo_Person"
+    dir_name = person_name.strip().replace(" ", "_")
+    person_dir = Path("dataset/known_persons") / dir_name
+    person_dir.mkdir(parents=True, exist_ok=True)
+
+    dest = person_dir / f"{dir_name}_demo_0000.png"
+    if not dest.exists():
+        import shutil
+        shutil.copy2(str(DEMO_FACE), str(dest))
+
+    # Retrain in background
+    def retrain():
+        import subprocess, sys
+        subprocess.run([sys.executable, "train_encodings.py"], capture_output=True)
+        face_engine.reload_model()
+
+    threading.Thread(target=retrain, daemon=True).start()
+    return jsonify({"success": True, "message": f"Enrolled '{person_name}' for demo recognition"})
 
 
 @app.route("/persons")

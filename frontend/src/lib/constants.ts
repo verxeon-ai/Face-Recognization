@@ -1,5 +1,10 @@
 export const NAV_ITEMS = [
   {
+    href: "/demo",
+    label: "Live Demo",
+    icon: "Play",
+  },
+  {
     href: "/image-triage",
     label: "Image Triage",
     icon: "Image",

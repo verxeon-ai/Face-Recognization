@@ -3,6 +3,9 @@ const nextConfig = {
   async rewrites() {
     const backend = process.env.FLASK_ORIGIN || "http://127.0.0.1:5001";
     return [
+      { source: "/api/demo/stream", destination: `${backend}/api/demo/stream` },
+      { source: "/api/demo/face", destination: `${backend}/api/demo/face` },
+      { source: "/api/demo/enroll", destination: `${backend}/api/demo/enroll` },
       { source: "/api/threat_status", destination: `${backend}/api/threat_status` },
       { source: "/api/incidents", destination: `${backend}/api/incidents` },
       { source: "/api/verify_incident", destination: `${backend}/api/verify_incident` },
