@@ -2,14 +2,13 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import { ArrowLeft, Images, UserCircle } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { api } from "@/lib/api/client";
-import { useRole } from "@/hooks/useRole";
 
 type PersonDetail = {
   name: string;
@@ -20,8 +19,6 @@ type PersonDetail = {
 
 export default function PersonDetailPage() {
   const params = useParams();
-  const router = useRouter();
-  const { isAdmin, isOperator, ready } = useRole();
   const rawName = decodeURIComponent(String(params.name || ""));
 
   const [detail, setDetail] = useState<PersonDetail | null>(null);
@@ -30,13 +27,7 @@ export default function PersonDetailPage() {
   const [lightbox, setLightbox] = useState<string | null>(null);
 
   useEffect(() => {
-    if (ready && isOperator) {
-      router.replace("/soc");
-    }
-  }, [ready, isOperator, router]);
-
-  useEffect(() => {
-    if (!isAdmin || !rawName) return;
+    if (!rawName) return;
     let cancelled = false;
     setLoading(true);
     setError(null);
@@ -57,15 +48,7 @@ export default function PersonDetailPage() {
     return () => {
       cancelled = true;
     };
-  }, [isAdmin, rawName]);
-
-  if (!ready || isOperator) {
-    return (
-      <div className="py-16 text-center text-sm text-aegis-muted">
-        Identity catalog is Admin-only. Redirecting…
-      </div>
-    );
-  }
+  }, [rawName]);
 
   const title = detail?.display_name || rawName.replaceAll("_", " ");
 

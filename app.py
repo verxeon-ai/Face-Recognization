@@ -59,15 +59,15 @@ PHONE_HTTPS_PORT = int(os.environ.get("PHONE_HTTPS_PORT", "5443"))
 SKIP_LOCAL_WEBCAM = os.environ.get(
     "SKIP_LOCAL_WEBCAM", "false"
 ).strip().lower() in ("1", "true", "yes", "on")
+SKIP_THREAT_ENGINE = os.environ.get(
+    "SKIP_THREAT_ENGINE", "false"
+).strip().lower() in ("1", "true", "yes", "on")
 
 if PUBLIC_BASE_URL.startswith("https://"):
     app.config["SESSION_COOKIE_SECURE"] = True
     app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 
-# Role unlock passwords (override via .env)
-ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "admin123")
-OPERATOR_PASSWORD = os.environ.get("OPERATOR_PASSWORD", "operator123")
-DEFAULT_SESSION_ROLE = os.environ.get("DEFAULT_SESSION_ROLE", "Security Operator")
+# Demo mode: RBAC disabled, all access open
 
 
 def ui_redirect(path: str):
@@ -92,9 +92,13 @@ ALLOWED_VIDEO_EXT = {"mp4", "avi", "mov", "mkv", "webm", "flv"}
 print("[App] Initializing SFace Face Recognition Engine...")
 face_engine = FaceRecognitionEngine()
 
-print("[App] Initializing V1 Enterprise Video Threat Recognition Engine...")
-threat_engine = V1ThreatDetectionEngine(face_engine=face_engine)
-print("[App] All Threat & AI Vision Engines Ready!")
+if SKIP_THREAT_ENGINE:
+    print("[App] SKIP_THREAT_ENGINE=true — threat engine disabled (client test mode)")
+    threat_engine = None
+else:
+    print("[App] Initializing V1 Enterprise Video Threat Recognition Engine...")
+    threat_engine = V1ThreatDetectionEngine(face_engine=face_engine)
+    print("[App] All Threat & AI Vision Engines Ready!")
 
 # ─────────────────────── Multi-Camera Stream Manager ────────────────── #
 class MultiCameraManager:
@@ -345,13 +349,8 @@ def ensure_ssl_certs():
 
 @app.before_request
 def check_rbac():
-    """Default new sessions to Security Operator (lower privilege)."""
-    if "role" not in session:
-        session["role"] = (
-            "Admin"
-            if DEFAULT_SESSION_ROLE.lower() == "admin"
-            else "Security Operator"
-        )
+    """Demo mode: always set Admin role."""
+    session["role"] = "Admin"
 
 
 @app.context_processor
@@ -385,6 +384,8 @@ def multi_camera():
 @app.route("/threat_video_feed/<int:cam_id>")
 def threat_video_feed(cam_id=1):
     """MJPEG stream with Threat Engine HUD for selected camera."""
+    if threat_engine is None:
+        return jsonify({"error": "Threat engine disabled in test mode"}), 503
     return Response(
         generate_threat_stream(cam_id),
         mimetype="multipart/x-mixed-replace; boundary=frame"
@@ -394,6 +395,8 @@ def threat_video_feed(cam_id=1):
 @app.route("/api/threat_status")
 def api_threat_status():
     """Live threat status JSON endpoint for frontend SOC dashboard."""
+    if threat_engine is None:
+        return jsonify({"threats_count": 0, "threats": [], "persons_in_view": 0, "motion_energy": 0, "camera_name": "N/A (test mode)", "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")})
     global latest_threat_hud
     return jsonify(latest_threat_hud)
 
@@ -401,6 +404,8 @@ def api_threat_status():
 @app.route("/api/incidents")
 def api_incidents():
     """Return all structured Incident Packages for human verification."""
+    if threat_engine is None:
+        return jsonify([])
     return jsonify(threat_engine.get_incidents())
 
 
@@ -410,6 +415,8 @@ def api_verify_incident():
     Human Verification Action endpoint:
     Escalate / False Alarm / Dismiss / Resolve
     """
+    if threat_engine is None:
+        return jsonify({"error": "Threat engine disabled in test mode"}), 503
     data = request.get_json() or {}
     inc_id = data.get("incident_id")
     action = data.get("action", "VERIFIED")
@@ -422,6 +429,8 @@ def api_verify_incident():
 @app.route("/api/delete_incidents", methods=["POST"])
 def api_delete_incidents():
     """Delete selected queue items, or clear the entire verification queue."""
+    if threat_engine is None:
+        return jsonify({"error": "Threat engine disabled in test mode"}), 503
     data = request.get_json() or {}
     clear_all = bool(data.get("clear_all"))
     incident_ids = data.get("incident_ids") or []
@@ -434,10 +443,11 @@ def api_delete_incidents():
 @app.route("/api/update_rules", methods=["POST"])
 def api_update_rules():
     """Update detection rules, threshold sliders, and alert configurations."""
+    if threat_engine is None:
+        return jsonify({"error": "Threat engine disabled in test mode"}), 503
     denied = require_admin()
     if denied:
         return denied
-
     data = request.get_json() or {}
     updated = threat_engine.update_rules(data)
     return jsonify({"success": True, "rules": updated})
@@ -446,6 +456,8 @@ def api_update_rules():
 @app.route("/api/rules", methods=["GET"])
 def api_get_rules():
     """Return current threat rules (safe for Operators to read; Admins edit via POST)."""
+    if threat_engine is None:
+        return jsonify({})
     return jsonify(threat_engine.rules)
 
 
@@ -453,9 +465,6 @@ def api_get_rules():
 def api_cameras():
     """List or update surveillance camera streams."""
     if request.method == "POST":
-        denied = require_admin()
-        if denied:
-            return denied
         data = request.get_json() or {}
         cam_id = int(data.get("cam_id", 1))
         name = data.get("name")
@@ -482,6 +491,8 @@ def api_cameras():
 @app.route("/api/dispatch_test_alert", methods=["POST"])
 def api_dispatch_test_alert():
     """Test emergency webhook / email / SMS dispatch."""
+    if threat_engine is None:
+        return jsonify({"error": "Threat engine disabled in test mode"}), 503
     denied = require_admin()
     if denied:
         return denied
@@ -503,47 +514,31 @@ def api_dispatch_test_alert():
 
 @app.route("/api/auth/switch_role", methods=["POST"])
 def switch_role():
-    """Switch role only when the matching role password is provided."""
-    data = request.get_json() or {}
-    target_role = str(data.get("role", "Operator")).strip().lower()
-    password = str(data.get("password", ""))
-
-    want_admin = target_role == "admin"
-    expected = ADMIN_PASSWORD if want_admin else OPERATOR_PASSWORD
-    if not password or not hmac.compare_digest(password, expected):
-        label = "Admin" if want_admin else "Security Operator"
-        return jsonify({"error": f"Incorrect {label} password."}), 401
-
-    session["role"] = "Admin" if want_admin else "Security Operator"
-    session["authenticated_at"] = datetime.now().isoformat(timespec="seconds")
-    return jsonify({"success": True, "current_role": session["role"]})
+    """Demo mode: always succeed, return Admin."""
+    session["role"] = "Admin"
+    return jsonify({"success": True, "current_role": "Admin"})
 
 
 @app.route("/api/auth/role", methods=["GET"])
 def get_role():
-    """Return current session role for UI gating."""
-    role = session.get("role", "Security Operator")
+    """Demo mode: always return Admin with full capabilities."""
     return jsonify({
-        "current_role": role,
-        "is_admin": role == "Admin",
+        "current_role": "Admin",
+        "is_admin": True,
         "capabilities": {
             "triage_incidents": True,
             "view_streams": True,
             "run_forensics": True,
-            "configure_rules": role == "Admin",
-            "dispatch_test_alerts": role == "Admin",
-            "enroll_identities": role == "Admin",
-            "configure_cameras": role == "Admin",
+            "configure_rules": True,
+            "dispatch_test_alerts": True,
+            "enroll_identities": True,
+            "configure_cameras": True,
         },
     })
 
 
 def require_admin():
-    """Return a 403 JSON response if the session is not Admin."""
-    if session.get("role") != "Admin":
-        return jsonify({
-            "error": "Admin role required. Switch to Admin for configuration and enrollment."
-        }), 403
+    """Demo mode: always allow access."""
     return None
 
 
@@ -871,11 +866,7 @@ def _safe_person_dirname(raw_name: str):
 
 @app.route("/api/persons/<path:person_name>")
 def api_person_detail(person_name):
-    """Return enrolled photos for one identity (Admin catalog)."""
-    denied = require_admin()
-    if denied:
-        return denied
-
+    """Return enrolled photos for one identity."""
     dir_name = _safe_person_dirname(person_name)
     if not dir_name:
         return jsonify({"error": "Invalid person name"}), 400
@@ -907,10 +898,6 @@ def api_person_detail(person_name):
 @app.route("/dataset/known_persons/<person_name>/<filename>")
 def serve_person_image(person_name, filename):
     """Serve an enrolled identity photo from the dataset."""
-    denied = require_admin()
-    if denied:
-        return denied
-
     dir_name = _safe_person_dirname(person_name)
     safe_file = secure_filename(filename)
     if not dir_name or not safe_file:
@@ -931,10 +918,6 @@ def add_person_page():
 
 @app.route("/add_person", methods=["POST"])
 def add_person():
-    denied = require_admin()
-    if denied:
-        return denied
-
     name = request.form.get("name", "").strip()
     if not name:
         return jsonify({"error": "Person name is required"}), 400

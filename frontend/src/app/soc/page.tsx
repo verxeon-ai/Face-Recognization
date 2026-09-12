@@ -23,11 +23,9 @@ import { api } from "@/lib/api/client";
 import { THREAT_MODULES } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { usePolling } from "@/hooks/usePolling";
-import { useRole } from "@/hooks/useRole";
 import type { Incident, ThreatStatus } from "@/types";
 
 export default function SocPage() {
-  const { isAdmin } = useRole();
   const [status, setStatus] = useState<ThreatStatus | null>(null);
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [focused, setFocused] = useState<string | null>(null);
@@ -255,11 +253,7 @@ export default function SocPage() {
     <div>
       <PageHeader
         title="SOC Video Threat Triage"
-        description={
-          isAdmin
-            ? "Full control: live analytics, verification queue, and detection rule configuration."
-            : "Operator triage: review live threats, verify or dismiss incidents, and mute the siren. Configuration is Admin-only."
-        }
+        description="Live analytics, verification queue, and detection rule configuration."
         actions={
           <>
             <Button
@@ -358,15 +352,9 @@ export default function SocPage() {
                     <Phone className="h-3.5 w-3.5" /> Connect Smartphone
                   </Button>
                 </Link>
-                {isAdmin ? (
-                  <Button size="sm" onClick={() => void openRules()}>
-                    <Settings2 className="h-3.5 w-3.5" /> Config & Alerts
-                  </Button>
-                ) : (
-                  <span className="inline-flex items-center rounded-md border border-aegis-border bg-aegis-panel px-2.5 py-1.5 text-[11px] text-aegis-muted">
-                    Config locked — Admin only
-                  </span>
-                )}
+                <Button size="sm" onClick={() => void openRules()}>
+                  <Settings2 className="h-3.5 w-3.5" /> Config & Alerts
+                </Button>
               </div>
             </div>
           </Card>

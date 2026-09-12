@@ -1,18 +1,14 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { ArrowLeft, Cpu, Images, UserPlus, X } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { api } from "@/lib/api/client";
-import { useRole } from "@/hooks/useRole";
 
 export default function AddPersonPage() {
-  const router = useRouter();
-  const { isAdmin, isOperator, ready } = useRole();
   const inputRef = useRef<HTMLInputElement>(null);
   const [name, setName] = useState("");
   const [files, setFiles] = useState<File[]>([]);
@@ -23,12 +19,6 @@ export default function AddPersonPage() {
     text: string;
   } | null>(null);
   const [dragOver, setDragOver] = useState(false);
-
-  useEffect(() => {
-    if (ready && isOperator) {
-      router.replace("/soc");
-    }
-  }, [ready, isOperator, router]);
 
   const addFiles = (incoming: FileList | File[] | null) => {
     if (!incoming) return;
@@ -82,14 +72,6 @@ export default function AddPersonPage() {
       setSubmitting(false);
     }
   };
-
-  if (!ready || !isAdmin) {
-    return (
-      <div className="py-16 text-center text-sm text-aegis-muted">
-        Identity enrollment is Admin-only. Redirecting…
-      </div>
-    );
-  }
 
   return (
     <div>

@@ -1,0 +1,60 @@
+# AegisAI — Minimal Client Test (EC2 direct IP, no HTTPS)
+# Usage:
+#   cp deploy/env.test.example .env.test
+#   docker compose -f deploy/docker-compose.test.yml --env-file .env.test up -d --build
+
+services:
+  backend:
+    build:
+      context: ..
+      dockerfile: Dockerfile.backend
+    env_file:
+      - ../.env.test
+    environment:
+      PORT: "5001"
+      NEXT_UI_ORIGIN: "http://frontend:3000"
+      FLASK_ORIGIN: "http://backend:5001"
+      ENABLE_LOCAL_HTTPS_PROXY: "false"
+      SKIP_LOCAL_WEBCAM: "true"
+      SKIP_THREAT_ENGINE: "true"
+    volumes:
+      - aegis_data:/app/data
+      - aegis_dataset:/app/dataset
+      - aegis_uploads:/app/uploads
+      - aegis_results:/app/results
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:5001/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 120s
+
+  frontend:
+    build:
+      context: ..
+      dockerfile: Dockerfile.frontend
+    environment:
+      FLASK_ORIGIN: "http://backend:5001"
+      PORT: "3000"
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:1.27-alpine
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.test.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - frontend
+      - backend
+    restart: unless-stopped
+
+volumes:
+  aegis_data:
+  aegis_dataset:
+  aegis_uploads:
+  aegis_results:

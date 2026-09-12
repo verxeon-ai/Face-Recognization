@@ -2,37 +2,26 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { Database, Search, UserCircle, UserPlus, Users, X } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { api } from "@/lib/api/client";
-import { useRole } from "@/hooks/useRole";
 import type { SystemStats } from "@/types";
 
 export default function PersonsPage() {
-  const router = useRouter();
-  const { isAdmin, isOperator, ready } = useRole();
   const [stats, setStats] = useState<SystemStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
 
   useEffect(() => {
-    if (ready && isOperator) {
-      router.replace("/soc");
-    }
-  }, [ready, isOperator, router]);
-
-  useEffect(() => {
-    if (!isAdmin) return;
     api
       .getStats()
       .then(setStats)
       .catch(() => setStats(null))
       .finally(() => setLoading(false));
-  }, [isAdmin]);
+  }, []);
 
   const persons = stats?.persons ?? [];
 
@@ -44,14 +33,6 @@ export default function PersonsPage() {
       return spaced.includes(q) || name.toLowerCase().includes(q);
     });
   }, [persons, query]);
-
-  if (!ready || isOperator) {
-    return (
-      <div className="py-16 text-center text-sm text-aegis-muted">
-        Identity enrollment is Admin-only. Redirecting…
-      </div>
-    );
-  }
 
   return (
     <div>
@@ -135,7 +116,7 @@ export default function PersonsPage() {
             </div>
           ) : filtered.length === 0 ? (
             <div className="py-12 text-center text-sm text-aegis-muted">
-              No identities match “{query.trim()}”.
+              No identities match "{query.trim()}".
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6">

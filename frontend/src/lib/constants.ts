@@ -3,43 +3,36 @@ export const NAV_ITEMS = [
     href: "/soc",
     label: "SOC Threat Triage",
     icon: "Radar",
-    roles: ["Admin", "Security Operator"] as const,
   },
   {
     href: "/live-face",
     label: "Live Face Cam",
     icon: "Video",
-    roles: ["Admin", "Security Operator"] as const,
   },
   {
     href: "/mobile-streamer",
     label: "Mobile Streamer",
     icon: "Smartphone",
-    roles: ["Admin", "Security Operator"] as const,
   },
   {
     href: "/image-triage",
     label: "Image Triage",
     icon: "Image",
-    roles: ["Admin", "Security Operator"] as const,
   },
   {
     href: "/video-scanner",
     label: "Video Scanner",
     icon: "Film",
-    roles: ["Admin", "Security Operator"] as const,
   },
   {
     href: "/audit-trail",
     label: "Audit Trail",
     icon: "ShieldAlert",
-    roles: ["Admin", "Security Operator"] as const,
   },
   {
     href: "/persons",
     label: "Identities",
     icon: "Users",
-    roles: ["Admin"] as const,
   },
 ] as const;
 
