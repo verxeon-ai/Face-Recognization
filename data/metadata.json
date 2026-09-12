@@ -1,7 +1,7 @@
 {
-  "total_persons": 52,
-  "total_images_processed": 2788,
-  "total_faces_extracted": 2788,
+  "total_persons": 53,
+  "total_images_processed": 2789,
+  "total_faces_extracted": 2789,
   "model": "SFace Deep Neural Network (128D)",
   "detector": "YuNet DNN",
   "cosine_threshold": 0.363,
@@ -16,6 +16,7 @@
     "Bill Clinton",
     "Colin Powell",
     "David Beckham",
+    "Demo Person",
     "Donald Rumsfeld",
     "George Robertson",
     "George W Bush",
