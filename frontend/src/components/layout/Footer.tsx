@@ -8,28 +8,34 @@ export function Footer() {
 
   useEffect(() => {
     let cancelled = false;
+    let retries = 0;
     const tick = async () => {
       try {
-        const [ipRes, statsRes] = await Promise.all([
-          fetch("/api/local_ip"),
-          fetch("/api/stats"),
-        ]);
+        const res = await fetch("/api/health", { cache: "no-store" });
         if (cancelled) return;
-        setOnline(statsRes.ok);
-        if (ipRes.ok) {
-          const data = await ipRes.json();
-          if (data?.public_base_url) {
-            setEndpointLabel(data.public_base_url.replace(/^https?:\/\//, ""));
-          } else if (data?.local_ip) {
-            setEndpointLabel(`${data.local_ip}:5001`);
+        const wasOnline = online;
+        setOnline(res.ok);
+        if (res.ok) retries = 0;
+        if (!wasOnline && res.ok) {
+          const ipRes = await fetch("/api/local_ip", { cache: "no-store" });
+          if (ipRes.ok) {
+            const data = await ipRes.json();
+            if (data?.public_base_url) {
+              setEndpointLabel(data.public_base_url.replace(/^https?:\/\//, ""));
+            } else if (data?.local_ip) {
+              setEndpointLabel(`${data.local_ip}:5001`);
+            }
           }
         }
       } catch {
-        if (!cancelled) setOnline(false);
+        if (!cancelled) {
+          retries++;
+          setOnline(false);
+        }
       }
     };
     tick();
-    const id = window.setInterval(tick, 10000);
+    const id = window.setInterval(tick, 3000);
     return () => {
       cancelled = true;
       window.clearInterval(id);

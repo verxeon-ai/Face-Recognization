@@ -5,24 +5,14 @@ import { usePathname } from "next/navigation";
 import {
   Film,
   Image as ImageIcon,
-  Radar,
-  ShieldAlert,
-  Smartphone,
-  Users,
-  Video,
 } from "lucide-react";
 import { useState } from "react";
 import { NAV_ITEMS } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 
 const ICONS = {
-  Radar,
-  Video,
-  Smartphone,
   Image: ImageIcon,
   Film,
-  ShieldAlert,
-  Users,
 } as const;
 
 export function Navbar() {
@@ -32,7 +22,7 @@ export function Navbar() {
   return (
     <header className="sticky top-0 z-50 border-b border-aegis-border bg-aegis-bg/90 backdrop-blur-md">
       <div className="mx-auto flex max-w-[1600px] items-center gap-3 px-4 py-3 lg:px-6">
-        <Link href="/soc" className="flex shrink-0 items-center gap-2.5">
+        <Link href="/video-scanner" className="flex shrink-0 items-center gap-2.5">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src="/aegis-mark.svg"

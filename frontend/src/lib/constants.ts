@@ -1,20 +1,5 @@
 export const NAV_ITEMS = [
   {
-    href: "/soc",
-    label: "SOC Threat Triage",
-    icon: "Radar",
-  },
-  {
-    href: "/live-face",
-    label: "Live Face Cam",
-    icon: "Video",
-  },
-  {
-    href: "/mobile-streamer",
-    label: "Mobile Streamer",
-    icon: "Smartphone",
-  },
-  {
     href: "/image-triage",
     label: "Image Triage",
     icon: "Image",
@@ -23,16 +8,6 @@ export const NAV_ITEMS = [
     href: "/video-scanner",
     label: "Video Scanner",
     icon: "Film",
-  },
-  {
-    href: "/audit-trail",
-    label: "Audit Trail",
-    icon: "ShieldAlert",
-  },
-  {
-    href: "/persons",
-    label: "Identities",
-    icon: "Users",
   },
 ] as const;
 

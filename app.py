@@ -364,20 +364,20 @@ def inject_global_vars():
 
 @app.route("/")
 def index():
-    """Legacy root → Next.js SOC triage."""
-    return ui_redirect("/soc")
+    """Legacy root -> Next.js video scanner."""
+    return ui_redirect("/video-scanner")
 
 
 @app.route("/threat_dashboard")
 def threat_dashboard():
-    """Legacy SOC page → Next.js /soc."""
-    return ui_redirect("/soc")
+    """Legacy SOC page -> Next.js /video-scanner."""
+    return ui_redirect("/video-scanner")
 
 
 @app.route("/multi_camera")
 def multi_camera():
-    """Legacy multi-camera wall removed — send users to SOC."""
-    return ui_redirect("/soc")
+    """Legacy multi-camera wall removed -> send users to video scanner."""
+    return ui_redirect("/video-scanner")
 
 
 @app.route("/threat_video_feed")
