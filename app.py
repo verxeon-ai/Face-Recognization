@@ -57,7 +57,7 @@ ENABLE_LOCAL_HTTPS_PROXY = os.environ.get(
 ).strip().lower() in ("1", "true", "yes", "on")
 PHONE_HTTPS_PORT = int(os.environ.get("PHONE_HTTPS_PORT", "5443"))
 SKIP_LOCAL_WEBCAM = os.environ.get(
-    "SKIP_LOCAL_WEBCAM", "false"
+    "SKIP_LOCAL_WEBCAM", "true"
 ).strip().lower() in ("1", "true", "yes", "on")
 SKIP_THREAT_ENGINE = os.environ.get(
     "SKIP_THREAT_ENGINE", "false"
